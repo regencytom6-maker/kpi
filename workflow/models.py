@@ -1,0 +1,204 @@
+from django.db import models
+from django.conf import settings
+from bmr.models import BMR
+
+class ProductionPhase(models.Model):
+    """Defines the production phases for different product types"""
+    
+    PHASE_CHOICES = [
+        # Common phases
+        ('bmr_creation', 'BMR Creation'),
+        ('regulatory_approval', 'Regulatory Approval'),
+        ('material_dispensing', 'Material Dispensing'),
+        ('quality_control', 'Quality Control'),
+        ('post_compression_qc', 'Post-Compression QC'),
+        ('post_mixing_qc', 'Post-Mixing QC'),
+        ('post_blending_qc', 'Post-Blending QC'),
+        ('packaging_material_release', 'Packaging Material Release'),
+        ('secondary_packaging', 'Secondary Packaging'),
+        ('final_qa', 'Final QA'),
+        ('finished_goods_store', 'Finished Goods Store'),
+        
+        # Ointment specific phases
+        ('mixing', 'Mixing'),
+        ('tube_filling', 'Tube Filling'),
+        
+        # Tablet specific phases
+        ('granulation', 'Granulation'),
+        ('blending', 'Blending'),
+        ('compression', 'Compression'),
+        ('sorting', 'Sorting'),
+        ('coating', 'Coating'),
+        ('blister_packing', 'Blister Packing'),
+        ('bulk_packing', 'Bulk Packing'),
+        
+        # Capsule specific phases
+        ('drying', 'Drying'),
+        ('filling', 'Filling'),
+    ]
+    
+    PRODUCT_TYPE_CHOICES = [
+        ('ointment', 'Ointment'),
+        ('tablet_normal', 'Tablet Normal'),
+        ('tablet_2', 'Tablet 2'),
+        ('capsule', 'Capsule'),
+    ]
+    
+    product_type = models.CharField(max_length=20, choices=PRODUCT_TYPE_CHOICES)
+    phase_name = models.CharField(max_length=30, choices=PHASE_CHOICES)
+    phase_order = models.IntegerField()
+    is_mandatory = models.BooleanField(default=True)
+    requires_approval = models.BooleanField(default=False)
+    can_rollback_to = models.ForeignKey(
+        'self', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        help_text="Phase to rollback to if this phase fails"
+    )
+    estimated_duration_hours = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    
+    class Meta:
+        unique_together = ['product_type', 'phase_name']
+        ordering = ['product_type', 'phase_order']
+    
+    def __str__(self):
+        return f"{self.get_product_type_display()} - {self.get_phase_name_display()}"
+
+class BatchPhaseExecution(models.Model):
+    """Tracks the execution of phases for each batch"""
+    
+    STATUS_CHOICES = [
+        ('not_ready', 'Not Ready'),
+        ('pending', 'Pending'),
+        ('in_progress', 'In Progress'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
+        ('skipped', 'Skipped'),
+        ('rolled_back', 'Rolled Back'),
+    ]
+    
+    bmr = models.ForeignKey(BMR, on_delete=models.CASCADE, related_name='phase_executions')
+    phase = models.ForeignKey(ProductionPhase, on_delete=models.CASCADE)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    
+    # Execution tracking
+    started_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='started_phases'
+    )
+    completed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='completed_phases'
+    )
+    
+    # Timestamps
+    created_date = models.DateTimeField(auto_now_add=True)
+    started_date = models.DateTimeField(null=True, blank=True)
+    completed_date = models.DateTimeField(null=True, blank=True)
+    
+    # Phase specific data
+    phase_data = models.JSONField(default=dict, blank=True)
+    operator_comments = models.TextField(blank=True)
+    qa_comments = models.TextField(blank=True)
+    
+    # Quality control
+    qc_approved = models.BooleanField(null=True, blank=True)
+    qc_approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='qc_approved_phases'
+    )
+    qc_approval_date = models.DateTimeField(null=True, blank=True)
+    rejection_reason = models.TextField(blank=True)
+    
+    class Meta:
+        unique_together = ['bmr', 'phase']
+        ordering = ['bmr', 'phase__phase_order']
+    
+    def __str__(self):
+        return f"{self.bmr.batch_number} - {self.phase.get_phase_name_display()} ({self.status})"
+    
+    def get_next_phase(self):
+        """Get the next phase in the workflow"""
+        product_type = self.bmr.product.product_type
+        current_order = self.phase.phase_order
+        # Handle special cases for tablet coating
+        if (product_type in ['tablet_normal', 'tablet_2'] and 
+            self.phase.phase_name == 'sorting'):
+            if self.bmr.product.is_coated:
+                # Go to coating phase
+                next_phase = ProductionPhase.objects.filter(
+                    product_type=product_type,
+                    phase_name='coating'
+                ).first()
+            else:
+                # Skip coating, go to packaging
+                next_phase = ProductionPhase.objects.filter(
+                    product_type=product_type,
+                    phase_name='packaging_material_release'
+                ).first()
+        else:
+            # Normal sequential flow
+            next_phase = ProductionPhase.objects.filter(
+                product_type=product_type,
+                phase_order__gt=current_order
+            ).first()
+        return next_phase
+    
+    def trigger_next_phase(self):
+        """Automatically trigger the next phase when current phase completes"""
+        if self.status == 'completed':
+            next_phase = self.get_next_phase()
+            if next_phase:
+                BatchPhaseExecution.objects.get_or_create(
+                    bmr=self.bmr,
+                    phase=next_phase,
+                    defaults={'status': 'pending'}
+                )
+
+class PhaseOperator(models.Model):
+    """Maps operators to specific phases they can handle"""
+    
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    phase = models.ForeignKey(ProductionPhase, on_delete=models.CASCADE)
+    is_primary_operator = models.BooleanField(default=False)
+    can_approve = models.BooleanField(default=False)
+    
+    class Meta:
+        unique_together = ['user', 'phase']
+    
+    def __str__(self):
+        return f"{self.user.username} - {self.phase.get_phase_name_display()}"
+
+class PhaseCheckpoint(models.Model):
+    """Quality checkpoints within phases"""
+    
+    phase_execution = models.ForeignKey(
+        BatchPhaseExecution, 
+        on_delete=models.CASCADE, 
+        related_name='checkpoints'
+    )
+    checkpoint_name = models.CharField(max_length=200)
+    expected_value = models.CharField(max_length=200)
+    actual_value = models.CharField(max_length=200, blank=True)
+    is_within_spec = models.BooleanField(null=True, blank=True)
+    checked_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True
+    )
+    checked_date = models.DateTimeField(null=True, blank=True)
+    comments = models.TextField(blank=True)
+    
+    def __str__(self):
+        return f"{self.phase_execution} - {self.checkpoint_name}"

@@ -1,0 +1,358 @@
+{% extends 'base.html' %}
+
+{% block title %}BMR Timeline Tracking - {{ block.super }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .timeline-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 20px 0;
+        border-radius: 15px;
+        margin-bottom: 30px;
+    }
+    
+    .timeline-card {
+        border: none;
+        border-radius: 15px;
+        box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+        margin-bottom: 20px;
+        transition: transform 0.3s ease;
+    }
+    
+    .timeline-card:hover {
+        transform: translateY(-5px);
+    }
+    
+    .phase-badge {
+        font-size: 0.8em;
+        padding: 4px 8px;
+        border-radius: 12px;
+        margin: 2px;
+    }
+    
+    .phase-timeline {
+        padding: 15px;
+        background: #f8f9fa;
+        border-radius: 10px;
+        margin-top: 10px;
+    }
+    
+    .phase-item {
+        padding: 8px 0;
+        border-bottom: 1px solid #eee;
+    }
+    
+    .phase-item:last-child {
+        border-bottom: none;
+    }
+    
+    .export-btn {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        color: white;
+        padding: 10px 20px;
+        border-radius: 8px;
+        margin: 0 5px;
+    }
+    
+    .export-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+    }
+    
+    .cycle-time {
+        background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+        color: white;
+        padding: 10px;
+        border-radius: 8px;
+        text-align: center;
+    }
+    
+    .navigation-sidebar {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 10px;
+        padding: 20px;
+        color: white;
+        position: sticky;
+        top: 20px;
+    }
+    
+    .nav-link {
+        color: rgba(255,255,255,0.8);
+        text-decoration: none;
+        padding: 8px 15px;
+        border-radius: 5px;
+        display: block;
+        margin: 5px 0;
+    }
+    
+    .nav-link:hover {
+        background: rgba(255,255,255,0.1);
+        color: white;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="timeline-header">
+    <div class="container">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h1 class="h2 mb-0">
+                    <i class="fas fa-timeline me-3"></i>
+                    BMR Timeline Tracking
+                </h1>
+                <p class="mb-0 mt-2">Complete production workflow monitoring from QA to FGS</p>
+            </div>
+            <div>
+                <button onclick="exportData('csv')" class="export-btn">
+                    <i class="fas fa-file-csv me-2"></i>Export CSV
+                </button>
+                <button onclick="exportData('excel')" class="export-btn">
+                    <i class="fas fa-file-excel me-2"></i>Export Excel
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container-fluid">
+    <div class="row">
+        <!-- Sidebar Navigation -->
+        <div class="col-lg-3">
+            <div class="navigation-sidebar">
+                <h5 class="mb-3">
+                    <i class="fas fa-compass me-2"></i>
+                    Navigation
+                </h5>
+                <a href="{% url 'dashboards:admin_dashboard' %}" class="nav-link">
+                    <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                </a>
+                <a href="{% url 'dashboards:admin_fgs_monitor' %}" class="nav-link">
+                    <i class="fas fa-warehouse me-2"></i>FGS Monitor
+                </a>
+                <a href="#summary" class="nav-link">
+                    <i class="fas fa-chart-bar me-2"></i>Summary
+                </a>
+                <a href="#timeline" class="nav-link">
+                    <i class="fas fa-list me-2"></i>Timeline Data
+                </a>
+                
+                <hr class="my-4" style="border-color: rgba(255,255,255,0.3);">
+                
+                <!-- Quick Stats -->
+                <div class="mt-4">
+                    <h6 class="mb-3">Quick Stats</h6>
+                    <div class="small text-light">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>Total BMRs:</span>
+                            <span>{{ total_bmrs }}</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>This Page:</span>
+                            <span>{{ page_obj.object_list|length }}</span>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span>Page:</span>
+                            <span>{{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Main Content -->
+        <div class="col-lg-9">
+            <!-- Summary Section -->
+            <div id="summary" class="row mb-4">
+                <div class="col-md-3">
+                    <div class="cycle-time">
+                        <i class="fas fa-clock fa-2x mb-2"></i>
+                        <h4>{{ timeline_data|length }}</h4>
+                        <p class="mb-0">BMRs Tracked</p>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="cycle-time" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                        <i class="fas fa-check-circle fa-2x mb-2"></i>
+                        <h4>{{ timeline_data|length }}</h4>
+                        <p class="mb-0">Completed</p>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="cycle-time" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);">
+                        <i class="fas fa-hourglass-half fa-2x mb-2"></i>
+                        <h4>{{ timeline_data|length }}</h4>
+                        <p class="mb-0">In Progress</p>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="cycle-time" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                        <i class="fas fa-chart-line fa-2x mb-2"></i>
+                        <h4>Avg</h4>
+                        <p class="mb-0">Cycle Time</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Timeline Cards -->
+            <div id="timeline">
+                {% for item in page_obj %}
+                <div class="timeline-card">
+                    <div class="card-header bg-primary text-white">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h5 class="mb-0">
+                                    <i class="fas fa-file-medical me-2"></i>
+                                    BMR {{ item.bmr.batch_number }}
+                                </h5>
+                                <small>{{ item.bmr.product.product_name }} ({{ item.bmr.product.product_type|title }})</small>
+                            </div>
+                            <div class="text-end">
+                                {% if item.total_time_days %}
+                                <div class="cycle-time d-inline-block" style="padding: 5px 10px; font-size: 0.9em;">
+                                    <strong>{{ item.total_time_days }} Days</strong>
+                                    <br><small>Total Cycle Time</small>
+                                </div>
+                                {% else %}
+                                <span class="badge bg-warning">In Progress</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card-body">
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <strong>Batch Size:</strong> {{ item.bmr.batch_size }} {{ item.bmr.batch_size_unit }}
+                            </div>
+                            <div class="col-md-4">
+                                <strong>Created By:</strong> {{ item.bmr.created_by.get_full_name|default:item.bmr.created_by.username }}
+                            </div>
+                            <div class="col-md-4">
+                                <strong>Created Date:</strong> {{ item.bmr.created_date|date:"M d, Y H:i" }}
+                            </div>
+                        </div>
+                        
+                        {% if item.current_phase %}
+                        <div class="alert alert-info">
+                            <strong>Current Phase:</strong> {{ item.current_phase.phase.phase_name|title }}
+                            <span class="badge bg-{{ item.current_phase.status|yesno:'primary,warning' }} ms-2">
+                                {{ item.current_phase.status|title }}
+                            </span>
+                        </div>
+                        {% endif %}
+                        
+                        <!-- Phase Timeline -->
+                        <div class="phase-timeline">
+                            <h6 class="mb-3">
+                                <i class="fas fa-tasks me-2"></i>
+                                Phase Progress
+                            </h6>
+                            
+                            <div class="row">
+                                {% for phase in item.phase_timeline %}
+                                <div class="col-md-6 col-lg-4 mb-2">
+                                    <div class="phase-item">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <span class="small fw-bold">{{ phase.phase_name }}</span>
+                                            <span class="phase-badge badge bg-{{ phase.status|yesno:'success,warning,secondary' }}">
+                                                {{ phase.status }}
+                                            </span>
+                                        </div>
+                                        {% if phase.started_date %}
+                                        <div class="small text-muted">
+                                            <i class="fas fa-play me-1"></i>{{ phase.started_date|date:"M d, H:i" }}
+                                            {% if phase.completed_date %}
+                                            <br><i class="fas fa-check me-1"></i>{{ phase.completed_date|date:"M d, H:i" }}
+                                            {% endif %}
+                                        </div>
+                                        {% endif %}
+                                        {% if phase.duration_hours %}
+                                        <div class="small text-success">
+                                            <i class="fas fa-clock me-1"></i>{{ phase.duration_hours }}h
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        
+                        <!-- Action Buttons -->
+                        <div class="mt-3">
+                            <a href="{% url 'bmr:detail' item.bmr.pk %}" class="btn btn-outline-primary btn-sm">
+                                <i class="fas fa-eye me-2"></i>View BMR Details
+                            </a>
+                            {% if item.is_completed %}
+                            <span class="badge bg-success ms-2">
+                                <i class="fas fa-check me-1"></i>Completed
+                            </span>
+                            {% else %}
+                            <span class="badge bg-warning ms-2">
+                                <i class="fas fa-clock me-1"></i>In Progress
+                            </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+                
+                <!-- Pagination -->
+                {% if page_obj.has_other_pages %}
+                <nav aria-label="Timeline pagination">
+                    <ul class="pagination justify-content-center">
+                        {% if page_obj.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page=1">&laquo; First</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a>
+                        </li>
+                        {% endif %}
+                        
+                        {% for num in page_obj.paginator.page_range %}
+                        {% if page_obj.number == num %}
+                        <li class="page-item active">
+                            <span class="page-link">{{ num }}</span>
+                        </li>
+                        {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                        </li>
+                        {% endif %}
+                        {% endfor %}
+                        
+                        {% if page_obj.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">Last &raquo;</a>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function exportData(format) {
+    window.location.href = `{% url 'dashboards:admin_timeline' %}?export=${format}`;
+}
+
+// Smooth scrolling for navigation
+document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+    anchor.addEventListener('click', function (e) {
+        e.preventDefault();
+        document.querySelector(this.getAttribute('href')).scrollIntoView({
+            behavior: 'smooth'
+        });
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,754 @@
+{% extends 'base.html' %}
+
+{% block title %}Admin Dashboard - {{ block.super }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    body {
+        background-color: #f8f9fa;
+    }
+    
+    .admin-sidebar {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: calc(100vh - 120px);
+        border-radius: 10px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        position: sticky;
+        top: 20px;
+    }
+    
+    .admin-card {
+        border: none;
+        border-radius: 15px;
+        box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        background: white;
+    }
+    
+    .admin-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 15px 35px rgba(0,0,0,0.15);
+    }
+    
+    .metric-card {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        color: white;
+        border-radius: 15px;
+        padding: 20px;
+        margin-bottom: 20px;
+        border: none;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        min-height: 120px;
+    }
+    
+    .metric-card.blue {
+        background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    }
+    
+    .metric-card.green {
+        background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+    }
+    
+    .metric-card.orange {
+        background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+    }
+    
+    .metric-card.purple {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+    
+    .sidebar-nav {
+        padding: 20px 0;
+    }
+    
+    .sidebar-nav .nav-link {
+        color: rgba(255,255,255,0.8);
+        padding: 12px 20px;
+        margin: 5px 15px;
+        border-radius: 8px;
+        transition: all 0.3s ease;
+        border-left: 3px solid transparent;
+        text-decoration: none;
+    }
+    
+    .sidebar-nav .nav-link:hover,
+    .sidebar-nav .nav-link.active {
+        background: rgba(255,255,255,0.1);
+        color: white;
+        border-left: 3px solid #fff;
+        transform: translateX(5px);
+    }
+    
+    .sidebar-nav .nav-link i {
+        width: 20px;
+        margin-right: 10px;
+    }
+    
+    .chart-container {
+        position: relative;
+        height: 300px;
+        margin: 20px 0;
+    }
+    
+    .status-badge {
+        font-size: 0.85em;
+        padding: 4px 8px;
+        border-radius: 12px;
+    }
+    
+    .production-flow {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 15px;
+        padding: 20px;
+        color: white;
+        margin: 20px 0;
+    }
+    
+    .flow-item {
+        text-align: center;
+        padding: 15px;
+        margin: 5px;
+        background: rgba(255,255,255,0.1);
+        border-radius: 10px;
+        transition: all 0.3s ease;
+    }
+    
+    .flow-item:hover {
+        background: rgba(255,255,255,0.2);
+        transform: scale(1.05);
+    }
+    
+    .dashboard-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 30px 0;
+        border-radius: 15px;
+        margin-bottom: 30px;
+        text-align: center;
+    }
+    
+    @media (max-width: 768px) {
+        .admin-sidebar {
+            margin-bottom: 20px;
+            min-height: auto;
+        }
+        
+        .metric-card {
+            margin-bottom: 15px;
+            min-height: 100px;
+        }
+        
+        .col-sm-6 {
+            flex: 0 0 auto;
+            width: 50%;
+        }
+        
+        .production-item {
+            margin-bottom: 10px;
+        }
+        
+        .row.g-3 {
+            margin: 0 -8px;
+        }
+        
+        .row.g-3 > * {
+            padding: 0 8px;
+        }
+    }
+    
+    @media (max-width: 576px) {
+        .metric-card h3 {
+            font-size: 1.5rem;
+        }
+        
+        .dashboard-header {
+            padding: 20px 0;
+        }
+        
+        .dashboard-header h1 {
+            font-size: 1.5rem;
+        }
+    }
+    
+    .container-fluid {
+        max-width: 1400px;
+        margin: 0 auto;
+    }
+    
+    /* Improved text contrast and readability */
+    .admin-card .card-body {
+        color: #2c3e50;
+    }
+    
+    .admin-card h5, .admin-card h6 {
+        color: #34495e;
+        font-weight: 600;
+    }
+    
+    .admin-card .text-muted {
+        color: #6c757d !important;
+    }
+    
+    .admin-card .text-dark {
+        color: #2c3e50 !important;
+    }
+    
+    /* Better table styling */
+    .table {
+        background: white;
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    }
+    
+    .table th {
+        background: #f8f9fa;
+        color: #495057;
+        font-weight: 600;
+        border: none;
+        padding: 15px;
+    }
+    
+    .table td {
+        color: #495057;
+        border: none;
+        padding: 12px 15px;
+        vertical-align: middle;
+    }
+    
+    .table tbody tr:hover {
+        background-color: #f8f9fa;
+    }
+    
+    /* Status badges with better contrast */
+    .badge {
+        font-weight: 500;
+        padding: 6px 12px;
+    }
+    
+    .badge-success {
+        background-color: #28a745;
+        color: white;
+    }
+    
+    .badge-warning {
+        background-color: #ffc107;
+        color: #212529;
+    }
+    
+    .badge-danger {
+        background-color: #dc3545;
+        color: white;
+    }
+    
+    .badge-info {
+        background-color: #17a2b8;
+        color: white;
+    }
+    
+    /* Production pipeline items */
+    .production-item {
+        background: white;
+        border-radius: 10px;
+        padding: 15px;
+        margin: 5px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        transition: all 0.3s ease;
+    }
+    
+    .production-item:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+    }
+    
+    .production-item h6 {
+        color: #495057;
+        margin-bottom: 10px;
+        font-weight: 600;
+    }
+    
+    .production-count {
+        font-size: 1.5rem;
+        font-weight: bold;
+        color: #007bff;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-header">
+    <div class="container-fluid">
+        <h1 class="h2 mb-0">
+            <i class="fas fa-tachometer-alt me-3"></i>
+            Pharmaceutical Operations Command Center
+        </h1>
+        <p class="mb-0 mt-2">Real-time production monitoring and system administration</p>
+    </div>
+</div>
+
+<div class="container-fluid px-4">
+    <div class="row g-4">
+        <!-- Left Sidebar -->
+        <div class="col-lg-3 col-md-4">
+            <div class="admin-sidebar">
+                <div class="p-3">
+                    <h5 class="text-white mb-0">
+                        <i class="fas fa-user-shield me-2"></i>
+                        Admin Control Panel
+                    </h5>
+                    <small class="text-light opacity-75">System Management</small>
+                </div>
+                
+                <nav class="sidebar-nav">
+                    <a href="{% url 'dashboards:admin_dashboard' %}" class="nav-link active">
+                        <i class="fas fa-chart-line"></i>
+                        Dashboard Overview
+                    </a>
+                    <a href="{% url 'dashboards:admin_timeline' %}" class="nav-link">
+                        <i class="fas fa-timeline"></i>
+                        BMR Timeline Tracking
+                    </a>
+                    <a href="{% url 'dashboards:admin_fgs_monitor' %}" class="nav-link">
+                        <i class="fas fa-warehouse"></i>
+                        FGS Store Monitor
+                    </a>
+                    <a href="{% url 'admin:index' %}" class="nav-link">
+                        <i class="fas fa-cogs"></i>
+                        System Administration
+                    </a>
+                    <a href="{% url 'bmr:list' %}" class="nav-link">
+                        <i class="fas fa-file-medical"></i>
+                        BMR Management
+                    </a>
+                    <a href="#" class="nav-link" onclick="exportData('csv')">
+                        <i class="fas fa-download"></i>
+                        Export Reports
+                    </a>
+                </nav>
+            </div>
+        </div>
+        
+        <!-- Main Content -->
+        <div class="col-lg-9 col-md-8">
+            <!-- System Health Overview -->
+            <div class="admin-card mb-4">
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-md-4">
+                            <div class="d-flex align-items-center justify-content-center">
+                                <div class="bg-success text-white rounded-circle p-3 me-3">
+                                    <i class="fas fa-check-circle fa-lg"></i>
+                                </div>
+                                <div>
+                                    <h4 class="text-success mb-0">System Healthy</h4>
+                                    <small class="text-muted">All systems operational</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="d-flex align-items-center justify-content-center">
+                                <div class="bg-primary text-white rounded-circle p-3 me-3">
+                                    <i class="fas fa-industry fa-lg"></i>
+                                </div>
+                                <div>
+                                    <h4 class="text-primary mb-0">{{ stats.total_bmrs }} BMRs</h4>
+                                    <small class="text-muted">Production batches</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="d-flex align-items-center justify-content-center">
+                                <div class="bg-info text-white rounded-circle p-3 me-3">
+                                    <i class="fas fa-clock fa-lg"></i>
+                                </div>
+                                <div>
+                                    <h4 class="text-info mb-0">{{ stats.active_phases }}</h4>
+                                    <small class="text-muted">Active processes</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- System Status Row -->
+            <div class="row g-3 mb-4">
+                <div class="col-lg-4 col-md-6">
+                    <div class="admin-card">
+                        <div class="card-body text-center">
+                            <div class="d-flex align-items-center justify-content-center mb-2">
+                                <div class="bg-success text-white rounded-circle p-2 me-2">
+                                    <i class="fas fa-server"></i>
+                                </div>
+                                <h6 class="mb-0 text-dark">System Uptime</h6>
+                            </div>
+                            <h3 class="text-success mb-1">99.9%</h3>
+                            <small class="text-muted">Last 30 days</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-4 col-md-6">
+                    <div class="admin-card">
+                        <div class="card-body text-center">
+                            <div class="d-flex align-items-center justify-content-center mb-2">
+                                <div class="bg-info text-white rounded-circle p-2 me-2">
+                                    <i class="fas fa-users"></i>
+                                </div>
+                                <h6 class="mb-0 text-dark">Active Users</h6>
+                            </div>
+                            <h3 class="text-info mb-1">{{ stats.active_users }}</h3>
+                            <small class="text-muted">Currently online</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-4 col-md-6">
+                    <div class="admin-card">
+                        <div class="card-body text-center">
+                            <div class="d-flex align-items-center justify-content-center mb-2">
+                                <div class="bg-warning text-white rounded-circle p-2 me-2">
+                                    <i class="fas fa-tachometer-alt"></i>
+                                </div>
+                                <h6 class="mb-0 text-dark">System Load</h6>
+                            </div>
+                            <h3 class="text-warning mb-1">Normal</h3>
+                            <small class="text-muted">Performance status</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Metrics Row -->
+            <div class="row g-3 mb-4">
+                <div class="col-xl-3 col-lg-6 col-md-6 col-sm-6">
+                    <div class="metric-card blue">
+                        <div class="d-flex align-items-center h-100">
+                            <div class="flex-grow-1">
+                                <h3 class="mb-1 fw-bold">{{ stats.total_bmrs }}</h3>
+                                <p class="mb-1">Total BMRs</p>
+                                <small class="opacity-75">{{ stats.bmrs_this_month }} this month</small>
+                            </div>
+                            <i class="fas fa-file-medical fa-2x opacity-50"></i>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-xl-3 col-lg-6 col-md-6 col-sm-6">
+                    <div class="metric-card green">
+                        <div class="d-flex align-items-center h-100">
+                            <div class="flex-grow-1">
+                                <h3 class="mb-1 fw-bold">{{ stats.active_phases }}</h3>
+                                <p class="mb-1">Active Phases</p>
+                                <small class="opacity-75">{{ stats.completed_today }} completed today</small>
+                            </div>
+                            <i class="fas fa-cogs fa-2x opacity-50"></i>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-xl-3 col-lg-6 col-md-6 col-sm-6">
+                    <div class="metric-card orange">
+                        <div class="d-flex align-items-center h-100">
+                            <div class="flex-grow-1">
+                                <h3 class="mb-1 fw-bold">{{ production_stats.in_fgs }}</h3>
+                                <p class="mb-1">In FGS</p>
+                                <small class="opacity-75">{{ production_stats.final_qa_pending }} pending QA</small>
+                            </div>
+                            <i class="fas fa-warehouse fa-2x opacity-50"></i>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-xl-3 col-lg-6 col-md-6 col-sm-6">
+                    <div class="metric-card purple">
+                        <div class="d-flex align-items-center h-100">
+                            <div class="flex-grow-1">
+                                <h3 class="mb-1 fw-bold">{{ stats.active_users }}</h3>
+                                <p class="mb-1">Active Users</p>
+                                <small class="opacity-75">{{ stats.total_users }} total users</small>
+                            </div>
+                            <i class="fas fa-users fa-2x opacity-50"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Production Flow -->
+            <div class="admin-card mb-4">
+                <div class="card-body">
+                    <h5 class="card-title mb-3">
+                        <i class="fas fa-industry me-2 text-primary"></i>
+                        Production Pipeline Status
+                    </h5>
+                    <div class="row g-3">
+                        <div class="col-md-2 col-sm-4 col-6">
+                            <div class="production-item text-center">
+                                <i class="fas fa-flask fa-2x mb-2 text-info"></i>
+                                <h6>Production</h6>
+                                <div class="production-count text-info">{{ production_stats.in_production }}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-2 col-sm-4 col-6">
+                            <div class="production-item text-center">
+                                <i class="fas fa-microscope fa-2x mb-2 text-warning"></i>
+                                <h6>QC Hold</h6>
+                                <div class="production-count text-warning">{{ production_stats.quality_hold }}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-2 col-sm-4 col-6">
+                            <div class="production-item text-center">
+                                <i class="fas fa-box fa-2x mb-2 text-primary"></i>
+                                <h6>Packaging</h6>
+                                <div class="production-count text-primary">{{ production_stats.awaiting_packaging }}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-2 col-sm-4 col-6">
+                            <div class="production-item text-center">
+                                <i class="fas fa-clipboard-check fa-2x mb-2 text-secondary"></i>
+                                <h6>Final QA</h6>
+                                <div class="production-count text-secondary">{{ production_stats.final_qa_pending }}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-2 col-sm-4 col-6">
+                            <div class="production-item text-center">
+                                <i class="fas fa-warehouse fa-2x mb-2 text-success"></i>
+                                <h6>FGS</h6>
+                                <div class="production-count text-success">{{ production_stats.in_fgs }}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-2 col-sm-4 col-6">
+                            <div class="production-item text-center">
+                                <i class="fas fa-exclamation-triangle fa-2x mb-2 text-danger"></i>
+                                <h6>Issues</h6>
+                                <div class="production-count text-danger">{{ stats.failed_phases }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Additional System Information Row -->
+            <div class="row g-3 mb-4">
+                <div class="col-lg-3 col-md-6">
+                    <div class="admin-card">
+                        <div class="card-body text-center">
+                            <div class="d-flex align-items-center justify-content-center mb-2">
+                                <div class="bg-primary text-white rounded-circle p-2 me-2">
+                                    <i class="fas fa-database"></i>
+                                </div>
+                                <h6 class="mb-0 text-dark">Database Status</h6>
+                            </div>
+                            <h5 class="text-success mb-1">Online</h5>
+                            <small class="text-muted">All systems operational</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-3 col-md-6">
+                    <div class="admin-card">
+                        <div class="card-body text-center">
+                            <div class="d-flex align-items-center justify-content-center mb-2">
+                                <div class="bg-warning text-white rounded-circle p-2 me-2">
+                                    <i class="fas fa-tasks"></i>
+                                </div>
+                                <h6 class="mb-0 text-dark">Background Jobs</h6>
+                            </div>
+                            <h5 class="text-success mb-1">{{ stats.active_phases }}</h5>
+                            <small class="text-muted">Active processes</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-3 col-md-6">
+                    <div class="admin-card">
+                        <div class="card-body text-center">
+                            <div class="d-flex align-items-center justify-content-center mb-2">
+                                <div class="bg-info text-white rounded-circle p-2 me-2">
+                                    <i class="fas fa-clock"></i>
+                                </div>
+                                <h6 class="mb-0 text-dark">Last Backup</h6>
+                            </div>
+                            <h5 class="text-info mb-1">2h ago</h5>
+                            <small class="text-muted">Automated backup</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-3 col-md-6">
+                    <div class="admin-card">
+                        <div class="card-body text-center">
+                            <div class="d-flex align-items-center justify-content-center mb-2">
+                                <div class="bg-danger text-white rounded-circle p-2 me-2">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                </div>
+                                <h6 class="mb-0 text-dark">Alerts</h6>
+                            </div>
+                            <h5 class="text-success mb-1">0</h5>
+                            <small class="text-muted">No active alerts</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Content Cards Row -->
+            <div class="row g-3">
+                <!-- Recent BMRs -->
+                <div class="col-lg-6">
+                    <div class="admin-card">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center mb-3">
+                                <div class="bg-primary text-white rounded-circle p-2 me-3">
+                                    <i class="fas fa-file-medical"></i>
+                                </div>
+                                <h5 class="card-title mb-0 text-dark">Recent BMRs</h5>
+                            </div>
+                            {% if recent_bmrs %}
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th class="text-dark">Batch</th>
+                                            <th class="text-dark">Product</th>
+                                            <th class="text-dark">Status</th>
+                                            <th class="text-dark">Created</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for bmr in recent_bmrs %}
+                                        <tr>
+                                            <td><strong class="text-primary">{{ bmr.batch_number }}</strong></td>
+                                            <td class="text-dark">{{ bmr.product.product_name|truncatechars:25 }}</td>
+                                            <td>
+                                                {% if bmr.status == 'approved' %}
+                                                    <span class="badge badge-success">Approved</span>
+                                                {% elif bmr.status == 'submitted' %}
+                                                    <span class="badge badge-warning">Submitted</span>
+                                                {% else %}
+                                                    <span class="badge badge-info">{{ bmr.get_status_display }}</span>
+                                                {% endif %}
+                                            </td>
+                                            <td class="text-muted">{{ bmr.created_date|date:"M d" }}</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {% else %}
+                            <p class="text-muted text-center py-3">No recent BMRs</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- System Analytics -->
+                <div class="col-lg-6">
+                    <div class="admin-card">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center mb-3">
+                                <div class="bg-success text-white rounded-circle p-2 me-3">
+                                    <i class="fas fa-chart-pie"></i>
+                                </div>
+                                <h5 class="card-title mb-0 text-dark">System Analytics</h5>
+                            </div>
+                            
+                            <!-- Product Types -->
+                            <h6 class="mb-3 text-dark">Product Distribution</h6>
+                            {% for product_type in products_by_type %}
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="text-dark">{{ product_type.product_type|title }}</span>
+                                <div class="d-flex align-items-center">
+                                    <span class="badge bg-primary me-2">{{ product_type.count }}</span>
+                                    <div class="progress" style="width: 80px; height: 6px;">
+                                        <div class="progress-bar bg-primary" style="width: {% widthratio product_type.count 5 100 %}%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                            
+                            <hr class="my-3">
+                            
+                            <!-- User Roles -->
+                            <h6 class="mb-3 text-dark">User Distribution</h6>
+                            {% for role in users_by_role|slice:":5" %}
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="text-dark">{{ role.role|title|default:"No Role" }}</span>
+                                <span class="badge bg-secondary">{{ role.count }}</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Recent Users and Quick Actions -->
+            <div class="row g-3 mt-4">
+                <div class="col-lg-6">
+                    <div class="admin-card">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center mb-3">
+                                <div class="bg-info text-white rounded-circle p-2 me-3">
+                                    <i class="fas fa-user-plus"></i>
+                                </div>
+                                <h5 class="card-title mb-0 text-dark">Recent Users</h5>
+                            </div>
+                            {% for user in recent_users|slice:":5" %}
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <div>
+                                    <strong class="text-dark">{{ user.get_full_name|default:user.username }}</strong>
+                                    <br><small class="text-muted">{{ user.role|title|default:"No Role" }}</small>
+                                </div>
+                                <small class="text-muted">{{ user.date_joined|date:"M d" }}</small>
+                            </div>
+                            {% empty %}
+                            <p class="text-muted text-center py-3">No recent users</p>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-6">
+                    <div class="admin-card">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center mb-3">
+                                <div class="bg-warning text-white rounded-circle p-2 me-3">
+                                    <i class="fas fa-bolt"></i>
+                                </div>
+                                <h5 class="card-title mb-0 text-dark">Quick Actions</h5>
+                            </div>
+                            <div class="d-grid gap-2">
+                                <a href="{% url 'dashboards:admin_timeline' %}" class="btn btn-outline-primary">
+                                    <i class="fas fa-timeline me-2"></i>View BMR Timeline
+                                </a>
+                                <a href="{% url 'dashboards:admin_fgs_monitor' %}" class="btn btn-outline-success">
+                                    <i class="fas fa-warehouse me-2"></i>Monitor FGS Store
+                                </a>
+                                <a href="{% url 'admin:index' %}" class="btn btn-outline-secondary">
+                                    <i class="fas fa-cogs me-2"></i>System Admin
+                                </a>
+                                <button onclick="exportData('excel')" class="btn btn-outline-info">
+                                    <i class="fas fa-download me-2"></i>Export Timeline
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function exportData(format) {
+    window.location.href = `{% url 'dashboards:admin_timeline' %}?export=${format}`;
+}
+
+// Auto-refresh dashboard every 30 seconds
+setInterval(function() {
+    if (document.hasFocus()) {
+        window.location.reload();
+    }
+}, 30000);
+</script>
+{% endblock %}

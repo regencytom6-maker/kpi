@@ -1,0 +1,181 @@
+{% extends 'base.html' %}
+
+{% block title %}Store Manager Dashboard - Kampala Pharmaceutical Industries{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2 class="text-primary mb-0">
+                        <i class="fas fa-warehouse me-2"></i>Store Manager Dashboard
+                    </h2>
+                    <p class="text-muted mb-0">Material Dispensing Management</p>
+                </div>
+                <div class="text-end">
+                    <small class="text-muted">Welcome, {{ user.get_full_name|default:user.username }}</small><br>
+                    <small class="text-success">{{ user.get_role_display }}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0">{{ stats.pending_phases }}</h5>
+                            <p class="card-text">Pending Dispensing</p>
+                        </div>
+                        <i class="fas fa-clock fa-2x opacity-75"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0">{{ stats.in_progress_phases }}</h5>
+                            <p class="card-text">In Progress</p>
+                        </div>
+                        <i class="fas fa-box fa-2x opacity-75"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0">{{ stats.completed_today }}</h5>
+                            <p class="card-text">Dispensed Today</p>
+                        </div>
+                        <i class="fas fa-check-circle fa-2x opacity-75"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0">{{ stats.total_batches }}</h5>
+                            <p class="card-text">Total Batches</p>
+                        </div>
+                        <i class="fas fa-archive fa-2x opacity-75"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Material Dispensing Queue -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-pills me-2"></i>Material Dispensing Queue
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if my_phases %}
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>BMR Number</th>
+                                        <th>Product</th>
+                                        <th>Batch Size</th>
+                                        <th>Priority</th>
+                                        <th>Requested</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for phase in my_phases %}
+                                    <tr>
+                                        <td><strong class="text-primary">{{ phase.bmr.bmr_number }}</strong></td>
+                                        <td>{{ phase.bmr.product.product_name }}</td>
+                                        <td>{{ phase.bmr.batch_size|floatformat:0 }} {{ phase.bmr.product.unit_of_measure }}</td>
+                                        <td>
+                                            {% if phase.bmr.created_date|timesince|slice:":1" == "0" %}
+                                                <span class="badge bg-danger">Urgent</span>
+                                            {% else %}
+                                                <span class="badge bg-success">Normal</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ phase.bmr.created_date|date:"M d, H:i" }}</td>
+                                        <td>
+                                            {% if phase.status == 'pending' %}
+                                                <span class="badge bg-warning">Pending</span>
+                                            {% elif phase.status == 'in_progress' %}
+                                                <span class="badge bg-info">In Progress</span>
+                                            {% else %}
+                                                <span class="badge bg-success">{{ phase.status|title }}</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm">
+                                                <a href="{% url 'bmr:detail' phase.bmr.pk %}" 
+                                                   class="btn btn-outline-primary btn-sm">
+                                                    <i class="fas fa-eye"></i> View
+                                                </a>
+                                                {% if phase.status == 'pending' %}
+                                                <button class="btn btn-outline-success btn-sm"
+                                                        onclick="startDispensing('{{ phase.bmr.pk }}')">
+                                                    <i class="fas fa-play"></i> Start
+                                                </button>
+                                                {% elif phase.status == 'in_progress' %}
+                                                <button class="btn btn-outline-warning btn-sm"
+                                                        onclick="completeDispensing('{{ phase.bmr.pk }}')">
+                                                    <i class="fas fa-check"></i> Complete
+                                                </button>
+                                                {% endif %}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% empty %}
+                        <div class="text-center py-5">
+                            <i class="fas fa-clipboard-check fa-3x text-success mb-3"></i>
+                            <h5 class="text-muted">No Pending Material Dispensing</h5>
+                            <p class="text-muted">All material dispensing requests are up to date.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function startDispensing(bmrId) {
+    if (confirm('Start material dispensing for this BMR?')) {
+        // Add AJAX call to start dispensing
+        window.location.href = `/bmr/${bmrId}/start-phase/material_dispensing/`;
+    }
+}
+
+function completeDispensing(bmrId) {
+    const comments = prompt('Enter dispensing comments (optional):');
+    if (comments !== null) {
+        // Add AJAX call to complete dispensing
+        window.location.href = `/bmr/${bmrId}/complete-phase/material_dispensing/?comments=${encodeURIComponent(comments)}`;
+    }
+}
+</script>
+{% endblock %}
