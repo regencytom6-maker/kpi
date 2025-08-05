@@ -27,13 +27,22 @@ def create_bmr_view(request):
         if form.is_valid():
             bmr = form.save(commit=False)
             bmr.created_by = request.user
-            bmr.save()
-            
+            try:
+                bmr.save()
+            except Exception as e:
+                from django.db import IntegrityError
+                if isinstance(e, IntegrityError) and 'UNIQUE constraint failed' in str(e):
+                    messages.error(request, f'A BMR with this batch number already exists. Please use a unique batch number.')
+                    return render(request, 'bmr/create_bmr.html', {
+                        'form': form,
+                        'title': 'Create New BMR'
+                    })
+                else:
+                    raise
             # Initialize workflow for this BMR
             try:
                 WorkflowService.initialize_workflow_for_bmr(bmr)
                 workflow_status = WorkflowService.get_workflow_status(bmr)
-                
                 messages.success(
                     request, 
                     f'BMR created successfully with batch number {bmr.batch_number}. '
@@ -44,7 +53,6 @@ def create_bmr_view(request):
                     request,
                     f'BMR created with batch number {bmr.batch_number}, but workflow initialization failed: {e}'
                 )
-            
             return redirect('bmr:detail', bmr.id)
     else:
         form = BMRCreateForm()

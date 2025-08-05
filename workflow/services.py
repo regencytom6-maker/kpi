@@ -29,7 +29,7 @@ class WorkflowService:
             'post_compression_qc',  # QC test after compression - rolls back to blending if failed
             'sorting',
             'coating',  # Will be skipped if tablet is not coated
-            'packaging_material_release',  # Packaging materials released BEFORE packing
+            'packaging_material_release',  # Packaging materials released IMMEDIATELY AFTER coating
             'blister_packing',  # Default packing for normal tablets (or bulk_packing for tablet_2)
             'secondary_packaging',
             'final_qa',
@@ -63,17 +63,31 @@ class WorkflowService:
         
         # Customize workflow based on product specifics
         if product_type == 'tablet':
-            # Skip coating phase if tablet is not coated
-            if not bmr.product.is_coated and 'coating' in workflow_phases:
-                workflow_phases = [phase for phase in workflow_phases if phase != 'coating']
-            
-            # Change packing based on tablet type
-            if bmr.product.tablet_type == 'tablet_2':
-                # Replace blister_packing with bulk_packing for tablet type 2
-                workflow_phases = [
-                    'bulk_packing' if phase == 'blister_packing' else phase 
-                    for phase in workflow_phases
-                ]
+            # Always enforce correct order: sorting -> coating (if coated) -> packaging_material_release
+            base_phases = [
+                'bmr_creation',
+                'regulatory_approval',
+                'material_dispensing',
+                'granulation',
+                'blending',
+                'compression',
+                'post_compression_qc',
+                'sorting',
+            ]
+            if bmr.product.is_coated:
+                base_phases.append('coating')
+            base_phases.append('packaging_material_release')
+            # Packing type
+            if getattr(bmr.product, 'tablet_type', None) == 'tablet_2':
+                base_phases.append('bulk_packing')
+            else:
+                base_phases.append('blister_packing')
+            base_phases += ['secondary_packaging', 'final_qa', 'finished_goods_store']
+            workflow_phases = base_phases
+
+        # Remove any accidental duplicates
+        seen = set()
+        workflow_phases = [x for x in workflow_phases if not (x in seen or seen.add(x))]
         
         # Create phase executions for all phases in the workflow
         for order, phase_name in enumerate(workflow_phases, 1):
@@ -310,41 +324,84 @@ class WorkflowService:
     def trigger_next_phase(cls, bmr, current_phase):
         """Trigger the next phase in the workflow after completing current phase"""
         try:
-            # Instead of using workflow array, find the next phase by phase_order
             current_execution = BatchPhaseExecution.objects.get(
                 bmr=bmr,
                 phase=current_phase
             )
             
-            # Find the next phase in sequence by phase_order
-            next_execution = BatchPhaseExecution.objects.filter(
-                bmr=bmr,
-                phase__phase_order__gt=current_execution.phase.phase_order,
-                status='not_ready'
-            ).order_by('phase__phase_order').first()
+            # Special handling for sorting -> coating for tablets
+            if current_execution.phase.phase_name == 'sorting' and bmr.product.product_type == 'tablet':
+                print(f"Completed sorting for tablet BMR {bmr.batch_number}, handling workflow...")
+                is_coated = bmr.product.is_coated
+                print(f"Is product coated: {is_coated}")
+                
+                # Get coating and packaging phases
+                coating_phase = BatchPhaseExecution.objects.filter(
+                    bmr=bmr, 
+                    phase__phase_name='coating'
+                ).first()
+                
+                packaging_phase = BatchPhaseExecution.objects.filter(
+                    bmr=bmr,
+                    phase__phase_name='packaging_material_release'
+                ).first()
+                
+                if coating_phase and packaging_phase:
+                    print(f"Found coating phase (status: {coating_phase.status}) and packaging phase (status: {packaging_phase.status})")
+                    # For coated tablets: always go to coating first
+                    if is_coated:
+                        coating_phase.status = 'pending'
+                        coating_phase.save()
+                        print(f"Activated coating phase for coated product: {bmr.batch_number}")
+                        return True
+                    else:
+                        # For uncoated tablets: skip coating, go to packaging
+                        coating_phase.status = 'skipped'
+                        coating_phase.completed_date = timezone.now()
+                        coating_phase.operator_comments = "Phase skipped - product does not require coating"
+                        coating_phase.save()
+                        packaging_phase.status = 'pending'
+                        packaging_phase.save()
+                        print(f"Skipped coating, activated packaging for uncoated product: {bmr.batch_number}")
+                        return True
             
-            if next_execution:
-                # Handle special skipping logic for coating
-                if next_execution.phase.phase_name == 'coating' and not bmr.product.is_coated:
-                    # Skip coating phase
-                    next_execution.status = 'skipped'
-                    next_execution.completed_date = timezone.now()
-                    next_execution.operator_comments = "Phase skipped - product does not require coating"
-                    next_execution.save()
-                    print(f"Skipped coating phase for BMR {bmr.batch_number}")
-                    # Find the next phase after coating
-                    return cls.trigger_next_phase(bmr, next_execution.phase)
-                else:
-                    # Normal activation
-                    next_execution.status = 'pending'
-                    next_execution.save()
-                    print(f"Triggered next phase: {next_execution.phase.phase_name} for BMR {bmr.batch_number}")
+            # Special handling for coating -> packaging for coated tablets
+            if current_execution.phase.phase_name == 'coating' and bmr.product.product_type == 'tablet':
+                print(f"Completed coating for tablet BMR {bmr.batch_number}, activating packaging...")
+                packaging_phase = BatchPhaseExecution.objects.filter(
+                    bmr=bmr,
+                    phase__phase_name='packaging_material_release'
+                ).first()
+                
+                if packaging_phase:
+                    packaging_phase.status = 'pending'
+                    packaging_phase.save()
+                    print(f"Activated packaging phase after coating: {bmr.batch_number}")
                     return True
-            else:
-                print(f"No more phases to trigger for BMR {bmr.batch_number}")
             
+            # Standard next phase logic for other cases
+            all_next = BatchPhaseExecution.objects.filter(
+                bmr=bmr,
+                phase__phase_order__gt=current_execution.phase.phase_order
+            ).order_by('phase__phase_order')
+            
+            for next_execution in all_next:
+                # Only activate if not completed/skipped/failed
+                if next_execution.status in ['not_ready', 'pending']:
+                    # Don't handle coating here - it's handled in the special cases above
+                    if next_execution.phase.phase_name != 'coating':
+                        next_execution.status = 'pending'
+                        next_execution.save()
+                        print(f"Triggered next phase: {next_execution.phase.phase_name} for BMR {bmr.batch_number}")
+                        return True
+            
+            print(f"No more phases to trigger for BMR {bmr.batch_number}")
+            # Debug: print all phase statuses for this BMR
+            all_phases = BatchPhaseExecution.objects.filter(bmr=bmr).select_related('phase').order_by('phase__phase_order')
+            print("Phase order and statuses:")
+            for p in all_phases:
+                print(f"  {p.phase.phase_order:2d}. {p.phase.phase_name:25} {p.status}")
             return False
-            
         except BatchPhaseExecution.DoesNotExist:
             print(f"Current phase execution not found for BMR {bmr.batch_number}")
             return False

@@ -85,14 +85,32 @@ class BMR(models.Model):
     
     def save(self, *args, **kwargs):
         if not self.bmr_number:
-            self.bmr_number = self.generate_bmr_number()
+            self.bmr_number = self.generate_unique_bmr_number()
         super().save(*args, **kwargs)
-    
-    def generate_bmr_number(self):
-        """Generate unique BMR number"""
+
+    def generate_unique_bmr_number(self):
+        """Generate a truly unique BMR number for the year, even if BMRs are deleted or created concurrently."""
+        from django.db.models import Max
+        from datetime import datetime
         year = datetime.now().year
-        count = BMR.objects.filter(created_date__year=year).count() + 1
-        return f"BMR{year}{count:04d}"
+        prefix = f"BMR{year}"
+        # Find the max number used so far for this year
+        max_bmr = BMR.objects.filter(bmr_number__startswith=prefix).aggregate(Max('bmr_number'))['bmr_number__max']
+        if max_bmr:
+            # Extract the numeric part and increment
+            try:
+                last_num = int(max_bmr.replace(prefix, ""))
+            except Exception:
+                last_num = 0
+            next_num = last_num + 1
+        else:
+            next_num = 1
+        # Loop to ensure uniqueness in case of race condition
+        while True:
+            candidate = f"{prefix}{next_num:04d}"
+            if not BMR.objects.filter(bmr_number=candidate).exists():
+                return candidate
+            next_num += 1
 
 class BMRMaterial(models.Model):
     """Materials required for BMR production"""
