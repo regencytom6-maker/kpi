@@ -1,3 +1,81 @@
+from django.core.paginator import Paginator
+# --- RESTORE: Admin Timeline View ---
+from django.db.models import F, ExpressionWrapper, DateTimeField
+from django.contrib.auth.decorators import login_required
+from django.utils import timezone
+
+@login_required
+def admin_timeline_view(request):
+    """Admin Timeline View - Track all BMRs through the system"""
+    if not request.user.is_staff:
+        messages.error(request, 'Access denied. Admin privileges required.')
+        return redirect('dashboards:dashboard_home')
+
+    # Get export format if requested
+    export_format = request.GET.get('export')
+
+    # Get all BMRs with timeline data
+    bmrs = BMR.objects.select_related('product', 'created_by', 'approved_by').all()
+
+    # Add timeline data for each BMR
+    timeline_data = []
+    from workflow.models import BatchPhaseExecution
+    for bmr in bmrs:
+        phases = BatchPhaseExecution.objects.filter(bmr=bmr).select_related('phase').order_by('phase__phase_order')
+        bmr_created = bmr.created_date
+        fgs_completed = phases.filter(
+            phase__phase_name='finished_goods_store',
+            status='completed'
+        ).first()
+        total_time_days = None
+        if fgs_completed and fgs_completed.completed_date:
+            total_time_days = (fgs_completed.completed_date - bmr_created).days
+        phase_timeline = []
+        for phase in phases:
+            phase_data = {
+                'phase_name': phase.phase.phase_name.replace('_', ' ').title(),
+                'status': phase.status.title(),
+                'started_date': phase.started_date,
+                'completed_date': phase.completed_date,
+                'started_by': phase.started_by.get_full_name() if phase.started_by else None,
+                'completed_by': phase.completed_by.get_full_name() if phase.completed_by else None,
+                'duration_hours': None,
+                'operator_comments': getattr(phase, 'operator_comments', '') or '',
+                'phase_order': phase.phase.phase_order if hasattr(phase.phase, 'phase_order') else 0,
+            }
+            if phase.started_date and phase.completed_date:
+                duration = phase.completed_date - phase.started_date
+                phase_data['duration_hours'] = round(duration.total_seconds() / 3600, 2)
+            elif phase.started_date and not phase.completed_date:
+                duration = timezone.now() - phase.started_date
+                phase_data['duration_hours'] = round(duration.total_seconds() / 3600, 2)
+            phase_timeline.append(phase_data)
+        timeline_data.append({
+            'bmr': bmr,
+            'total_time_days': total_time_days,
+            'phase_timeline': phase_timeline,
+            'current_phase': phases.filter(status__in=['pending', 'in_progress']).first(),
+            'is_completed': fgs_completed is not None,
+        })
+
+    # Handle exports
+    if export_format in ['csv', 'excel']:
+        return export_timeline_data(request, timeline_data, export_format)
+
+    # Pagination
+    paginator = Paginator(timeline_data, 10)  # 10 BMRs per page
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    context = {
+        'user': request.user,
+        'page_obj': page_obj,
+        'timeline_data': page_obj.object_list,
+        'dashboard_title': 'BMR Timeline Tracking',
+        'total_bmrs': len(timeline_data),
+    }
+
+    return render(request, 'dashboards/admin_timeline.html', context)
 # Basic workflow_chart view to resolve missing view error
 from django.contrib.auth.decorators import login_required
 
@@ -76,7 +154,7 @@ def admin_dashboard(request):
     
     # Get FGS Store data
     fgs_batches = BatchPhaseExecution.objects.filter(
-        phase__phase_name='finished_goods_storage',
+        phase__phase_name='finished_goods_store',
         status__in=['completed', 'in_progress']
     )
     fgs_total_items = fgs_batches.count()
@@ -135,7 +213,7 @@ def admin_dashboard(request):
             status='pending'
         ).count(),
         'in_fgs': BatchPhaseExecution.objects.filter(
-            phase__phase_name='finished_goods_storage',
+            phase__phase_name='finished_goods_store',
             status__in=['completed', 'in_progress']
         ).count(),
     }
@@ -289,18 +367,18 @@ def qa_dashboard(request):
         status='in_progress'
     ).select_related('bmr', 'phase')[:10]
     
-    # Build operator history for this user: phases where user created the BMR or was QA (started_by or completed_by)
-    recent_phases = BatchPhaseExecution.objects.filter(
-        Q(started_by=request.user) | Q(completed_by=request.user) |
-        Q(bmr__created_by=request.user)
-    ).order_by('-started_date', '-completed_date')[:10]
+    # Build operator history for this user: only regulatory approval phases completed by this user
+    regulatory_phases = BatchPhaseExecution.objects.filter(
+        phase__phase_name='regulatory_approval',
+        completed_by=request.user
+    ).order_by('-completed_date')[:10]
     operator_history = [
         {
             'date': (p.completed_date or p.started_date or p.created_date).strftime('%Y-%m-%d %H:%M'),
             'batch': p.bmr.batch_number,
             'phase': p.phase.get_phase_name_display(),
         }
-        for p in recent_phases
+        for p in regulatory_phases
     ]
 
     context = {
@@ -512,7 +590,7 @@ def operator_dashboard(request):
         ).count(),
         'total_batches': len(set([p.bmr for p in my_phases])),
     }
-    
+
     # Determine the primary phase name for this role
     role_phase_mapping = {
         'mixing_operator': 'mixing',
@@ -526,19 +604,63 @@ def operator_dashboard(request):
         'packing_operator': 'packing',
         'sorting_operator': 'sorting',
     }
-    
+
     phase_name = role_phase_mapping.get(request.user.role, 'production')
     daily_progress = min(100, (stats['completed_today'] / max(1, stats['pending_phases'] + stats['completed_today'])) * 100)
-    
+
+    # Operator History: all phases completed by this user for their role
+
+    # Fix: Use .distinct() before slicing to avoid TypeError
+    completed_phases_qs = BatchPhaseExecution.objects.filter(
+        completed_by=request.user
+    ).select_related('bmr', 'phase').order_by('-completed_date')
+    completed_phases = list(completed_phases_qs[:20])
+    operator_history = [
+        {
+            'date': (p.completed_date or p.started_date or p.created_date).strftime('%Y-%m-%d %H:%M') if (p.completed_date or p.started_date or p.created_date) else '',
+            'batch': p.bmr.bmr_number,
+            'phase': p.phase.get_phase_name_display(),
+        }
+        for p in completed_phases
+    ]
+
+    # Operator Statistics
+    # Use .distinct() before slicing for batches_handled
+    batches_handled = completed_phases_qs.values('bmr').distinct().count()
+    total_completed = completed_phases_qs.count()
+    total_attempted = BatchPhaseExecution.objects.filter(started_by=request.user).count()
+    success_rate = round((total_completed / total_attempted) * 100, 1) if total_attempted else 0
+    completion_times = [
+        (p.completed_date - p.started_date).total_seconds() / 60
+        for p in completed_phases if p.completed_date and p.started_date
+    ]
+    avg_completion_time = f"{round(sum(completion_times)/len(completion_times), 1)} min" if completion_times else "-"
+    assignment_status = "You have assignments pending." if stats['pending_phases'] > 0 else "All assignments up to date."
+    operator_stats = {
+        'batches_handled': batches_handled,
+        'success_rate': success_rate,
+        'avg_completion_time': avg_completion_time,
+        'assignment_status': assignment_status,
+    }
+
+    # Operator Assignments: current in-progress or pending phases
+    operator_assignments = [
+        f"{p.bmr.bmr_number} - {p.phase.get_phase_name_display()} ({p.status.title()})"
+        for p in my_phases if p.status in ['pending', 'in_progress']
+    ]
+
     context = {
         'user': request.user,
         'my_phases': my_phases,
         'stats': stats,
         'phase_name': phase_name,
         'daily_progress': daily_progress,
-        'dashboard_title': f'{request.user.get_role_display()} Dashboard'
+        'dashboard_title': f'{request.user.get_role_display()} Dashboard',
+        'operator_history': operator_history,
+        'operator_stats': operator_stats,
+        'operator_assignments': operator_assignments,
     }
-    
+
     return render(request, 'dashboards/operator_dashboard.html', context)
 
 # Specific operator dashboards
@@ -863,6 +985,15 @@ def packing_dashboard(request):
     
     return render(request, 'dashboards/packing_dashboard.html', context)
 
+def format_phase_name(name):
+    """Format phase name for display"""
+    if not name:
+        return ""
+    # Replace underscores with spaces
+    name = name.replace("_", " ")
+    # Title case
+    return name.title()
+
 @login_required
 def finished_goods_dashboard(request):
     """Finished Goods Store Dashboard"""
@@ -873,115 +1004,154 @@ def finished_goods_dashboard(request):
     # Get all BMRs
     all_bmrs = BMR.objects.select_related('product', 'created_by').all()
     
-    # Get finished goods phases this user can work on
+    # Get phases this user can work on
     my_phases = []
     for bmr in all_bmrs:
         user_phases = WorkflowService.get_phases_for_user_role(bmr, request.user.role)
         my_phases.extend(user_phases)
+    # Only show finished_goods_store phases
+    my_phases = [p for p in my_phases if getattr(p.phase, 'phase_name', None) == 'finished_goods_store']
     
+    # Get all finished goods store phases for history statistics
+    all_fgs_phases = BatchPhaseExecution.objects.filter(
+        phase__phase_name='finished_goods_store'
+    ).select_related('bmr', 'phase', 'bmr__product')
+    
+    # Filtering support for dashboard cards
+    filter_param = request.GET.get('filter')
+    detail_param = request.GET.get('detail')
+    
+    # Detail view for specific card
+    if detail_param:
+        if detail_param == 'pending':
+            my_phases = [p for p in my_phases if p.status == 'pending']
+        elif detail_param == 'in_progress':
+            my_phases = [p for p in my_phases if p.status == 'in_progress']
+        elif detail_param == 'completed_today':
+            today = timezone.now().date()
+            my_phases = [p for p in all_fgs_phases if p.status == 'completed' and 
+                         getattr(p, 'completed_date', None) and p.completed_date.date() == today]
+        elif detail_param == 'total_batches':
+            # Show all batches that have reached FGS
+            my_phases = list(all_fgs_phases)
+    # Regular filtering
+    elif filter_param:
+        if filter_param == 'completed_today':
+            my_phases = [p for p in my_phases if p.status == 'completed' and getattr(p, 'completed_by', None) == request.user and getattr(p, 'completed_date', None) and p.completed_date.date() == timezone.now().date()]
+        elif filter_param == 'total_batches':
+            # Show all phases (default)
+            pass
+        else:
+            my_phases = [p for p in my_phases if p.status == filter_param]
+    
+    # History statistics (last 7 days)
+    today = timezone.now().date()
+    last_7_days = [today - timezone.timedelta(days=i) for i in range(7)]
+    daily_completions = {}
+    
+    for day in last_7_days:
+        count = all_fgs_phases.filter(
+            status='completed',
+            completed_date__date=day
+        ).count()
+        daily_completions[day.strftime('%a')] = count
+    
+    # Product type statistics in FGS
+    product_types = {}
+    for phase in all_fgs_phases.filter(status__in=['in_progress', 'completed']):
+        product_type = phase.bmr.product.product_type
+        if product_type in product_types:
+            product_types[product_type] += 1
+        else:
+            product_types[product_type] = 1
+
     # Statistics
     stats = {
         'pending_phases': len([p for p in my_phases if p.status == 'pending']),
         'in_progress_phases': len([p for p in my_phases if p.status == 'in_progress']),
         'completed_today': BatchPhaseExecution.objects.filter(
-            completed_by=request.user,
+            phase__phase_name='finished_goods_store',
+            status='completed',
             completed_date__date=timezone.now().date()
         ).count(),
-        'total_batches': len(set([p.bmr for p in my_phases])),
+        'total_batches': all_fgs_phases.values('bmr').distinct().count(),
+        'daily_history': daily_completions,
+        'product_types': product_types,
     }
-    
+
+    # Determine the primary phase name for this role
+    role_phase_mapping = {
+        'mixing_operator': 'mixing',
+        'granulation_operator': 'granulation',
+        'blending_operator': 'blending',
+        'compression_operator': 'compression',
+        'coating_operator': 'coating',
+        'drying_operator': 'drying',
+        'filling_operator': 'filling',
+        'tube_filling_operator': 'tube_filling',
+        'packing_operator': 'packing',
+        'sorting_operator': 'sorting',
+    }
+
+    phase_name = role_phase_mapping.get(request.user.role, 'production')
     daily_progress = min(100, (stats['completed_today'] / max(1, stats['pending_phases'] + stats['completed_today'])) * 100)
+    
+    # Get recently completed goods
+    recent_completed = BatchPhaseExecution.objects.filter(
+        phase__phase_name='finished_goods_store',
+        status='completed'
+    ).select_related('bmr', 'bmr__product').order_by('-completed_date')[:5]
+    
+    # Storage efficiency (time from final QA to FGS)
+    efficiency_data = []
+    for phase in recent_completed:
+        final_qa_phase = BatchPhaseExecution.objects.filter(
+            bmr=phase.bmr,
+            phase__phase_name='final_qa',
+            status='completed'
+        ).first()
+        
+        if final_qa_phase and final_qa_phase.completed_date and phase.completed_date:
+            storage_time = (phase.completed_date - final_qa_phase.completed_date).total_seconds() / 3600  # hours
+            efficiency_data.append({
+                'bmr': phase.bmr,
+                'time_hours': round(storage_time, 1)
+            })
+    
+    # Card specific view
+    detail_title = None
+    if request.GET.get('detail'):
+        detail = request.GET.get('detail')
+        if detail == 'pending':
+            detail_title = 'Pending Storage'
+        elif detail == 'in_progress':
+            detail_title = 'In Storage'
+        elif detail == 'completed_today':
+            detail_title = 'Stored Today'
+        elif detail == 'total_batches':
+            detail_title = 'All Batches in FGS'
+
+    # Process all phases to add display name
+    for phase in my_phases:
+        if hasattr(phase, 'phase') and hasattr(phase.phase, 'phase_name'):
+            phase.display_name = format_phase_name(phase.phase.phase_name)
     
     context = {
         'user': request.user,
         'my_phases': my_phases,
         'stats': stats,
+        'phase_name': 'finished_goods_store',
+        'phase_display_name': 'Finished Goods Store',
         'daily_progress': daily_progress,
-        'dashboard_title': 'Finished Goods Store Dashboard'
+        'dashboard_title': 'Finished Goods Store Dashboard',
+        'active_filter': filter_param,
+        'recent_completed': recent_completed,
+        'efficiency_data': efficiency_data,
+        'detail_title': detail_title,
+        'detail_view': request.GET.get('detail'),
     }
-    
-    return render(request, 'dashboards/finished_goods_dashboard.html', context)
 
-@login_required
-def admin_timeline_view(request):
-    """Admin Timeline View - Track all BMRs through the system"""
-    if not request.user.is_staff:
-        messages.error(request, 'Access denied. Admin privileges required.')
-        return redirect('dashboards:dashboard_home')
-    
-    # Get export format if requested
-    export_format = request.GET.get('export')
-    
-    # Get all BMRs with timeline data
-    bmrs = BMR.objects.select_related('product', 'created_by', 'approved_by').all()
-    
-    # Add timeline data for each BMR
-    timeline_data = []
-    for bmr in bmrs:
-        phases = BatchPhaseExecution.objects.filter(bmr=bmr).select_related('phase').order_by('phase__phase_order')
-        
-        # Calculate timeline metrics
-        bmr_created = bmr.created_date
-        fgs_completed = phases.filter(
-            phase__phase_name='finished_goods_storage',
-            status='completed'
-        ).first()
-        
-        total_time_days = None
-        if fgs_completed and fgs_completed.completed_date:
-            total_time_days = (fgs_completed.completed_date - bmr_created).days
-        
-        # Get phase timeline with detailed information
-        phase_timeline = []
-        for phase in phases:
-            phase_data = {
-                'phase_name': phase.phase.phase_name.replace('_', ' ').title(),
-                'status': phase.status.title(),
-                'started_date': phase.started_date,
-                'completed_date': phase.completed_date,
-                'started_by': phase.started_by.get_full_name() if phase.started_by else None,
-                'completed_by': phase.completed_by.get_full_name() if phase.completed_by else None,
-                'duration_hours': None,
-                'operator_comments': getattr(phase, 'operator_comments', '') or '',
-                'phase_order': phase.phase.phase_order if hasattr(phase.phase, 'phase_order') else 0,
-            }
-            
-            if phase.started_date and phase.completed_date:
-                duration = phase.completed_date - phase.started_date
-                phase_data['duration_hours'] = round(duration.total_seconds() / 3600, 2)
-            elif phase.started_date and not phase.completed_date:
-                # For ongoing phases, calculate current duration
-                duration = timezone.now() - phase.started_date
-                phase_data['duration_hours'] = round(duration.total_seconds() / 3600, 2)
-            
-            phase_timeline.append(phase_data)
-        
-        timeline_data.append({
-            'bmr': bmr,
-            'total_time_days': total_time_days,
-            'phase_timeline': phase_timeline,
-            'current_phase': phases.filter(status__in=['pending', 'in_progress']).first(),
-            'is_completed': fgs_completed is not None,
-        })
-    
-    # Handle exports
-    if export_format in ['csv', 'excel']:
-        return export_timeline_data(timeline_data, export_format)
-    
-    # Pagination
-    paginator = Paginator(timeline_data, 10)  # 10 BMRs per page
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
-    
-    context = {
-        'user': request.user,
-        'page_obj': page_obj,
-        'timeline_data': page_obj.object_list,
-        'dashboard_title': 'BMR Timeline Tracking',
-        'total_bmrs': len(timeline_data),
-    }
-    
-    return render(request, 'dashboards/admin_timeline.html', context)
+    return render(request, 'dashboards/finished_goods_dashboard.html', context)
 
 @login_required
 def admin_fgs_monitor(request):
@@ -992,7 +1162,7 @@ def admin_fgs_monitor(request):
     
     # Get finished goods storage phases
     fgs_phases = BatchPhaseExecution.objects.filter(
-        phase__phase_name='finished_goods_storage'
+        phase__phase_name='finished_goods_store'
     ).select_related('bmr__product', 'started_by', 'completed_by').order_by('-started_date')
     
     # Group by status
@@ -1032,148 +1202,280 @@ def admin_fgs_monitor(request):
     
     return render(request, 'dashboards/admin_fgs_monitor.html', context)
 
-def export_timeline_data(timeline_data, format_type):
+def export_timeline_data(request, timeline_data=None, format_type=None):
     """Export detailed timeline data to CSV or Excel with all phases"""
+    # Handle direct URL access
+    if timeline_data is None:
+        # Get export format from request
+        format_type = request.GET.get('format', 'excel')
+        
+        # Recreate the timeline data from scratch
+        from bmr.models import BMR
+        from workflow.models import BatchPhaseExecution
+        
+        bmrs = BMR.objects.select_related('product', 'created_by', 'approved_by').all()
+        
+        # Add timeline data for each BMR
+        timeline_data = []
+        for bmr in bmrs:
+            phases = BatchPhaseExecution.objects.filter(bmr=bmr).select_related('phase').order_by('phase__phase_order')
+            bmr_created = bmr.created_date
+            fgs_completed = phases.filter(
+                phase__phase_name='finished_goods_store',
+                status='completed'
+            ).first()
+            total_time_days = None
+            if fgs_completed and fgs_completed.completed_date:
+                total_time_days = (fgs_completed.completed_date - bmr_created).days
+            phase_timeline = []
+            for phase in phases:
+                phase_data = {
+                    'phase_name': phase.phase.phase_name.replace('_', ' ').title(),
+                    'status': phase.status.title(),
+                    'started_date': phase.started_date,
+                    'completed_date': phase.completed_date,
+                    'started_by': phase.started_by.get_full_name() if phase.started_by else None,
+                    'completed_by': phase.completed_by.get_full_name() if phase.completed_by else None,
+                    'duration_hours': None,
+                    'operator_comments': getattr(phase, 'operator_comments', '') or '',
+                    'phase_order': phase.phase.phase_order if hasattr(phase.phase, 'phase_order') else 0,
+                }
+                if phase.started_date and phase.completed_date:
+                    duration = phase.completed_date - phase.started_date
+                    phase_data['duration_hours'] = round(duration.total_seconds() / 3600, 2)
+                elif phase.started_date and not phase.completed_date:
+                    duration = timezone.now() - phase.started_date
+                    phase_data['duration_hours'] = round(duration.total_seconds() / 3600, 2)
+                phase_timeline.append(phase_data)
+            timeline_data.append({
+                'bmr': bmr,
+                'total_time_days': total_time_days,
+                'phase_timeline': phase_timeline,
+                'current_phase': phases.filter(status__in=['pending', 'in_progress']).first(),
+                'is_completed': fgs_completed is not None,
+            })
+    
+    # Generate CSV export
     if format_type == 'csv':
         response = HttpResponse(content_type='text/csv')
         response['Content-Disposition'] = f'attachment; filename="bmr_detailed_timeline_{timezone.now().strftime("%Y%m%d_%H%M%S")}.csv"'
-        
         writer = csv.writer(response)
+        
+        # Header row
+        writer.writerow(['BMR Report - Generated on', timezone.now().strftime('%Y-%m-%d %H:%M:%S')])
+        writer.writerow([])
         
         # Write detailed phase information for each BMR
         for item in timeline_data:
             bmr = item['bmr']
-            
-            # BMR Header
             writer.writerow([])  # Empty row for separation
             writer.writerow([f"BMR: {bmr.batch_number} - {bmr.product.product_name}"])
             writer.writerow([f"Product Type: {bmr.product.product_type}"])
             writer.writerow([f"Created: {bmr.created_date.strftime('%Y-%m-%d %H:%M:%S')}"])
             writer.writerow([f"Total Production Time: {item['total_time_days']} days" if item['total_time_days'] else "In Progress"])
             writer.writerow([])  # Empty row
-            
-            # Phase details header
             writer.writerow([
                 'Phase Name', 'Status', 'Started Date', 'Started By', 
                 'Completed Date', 'Completed By', 'Duration (Hours)', 'Comments'
             ])
-            
-            # Phase data
-            for phase_data in item['phase_timeline']:
-                duration = phase_data.get('duration_hours', '')
-                if duration:
-                    duration = f"{duration:.2f}"
-                    
+            for phase in item['phase_timeline']:
                 writer.writerow([
-                    phase_data['phase_name'],
-                    phase_data['status'],
-                    phase_data['started_date'].strftime('%Y-%m-%d %H:%M:%S') if phase_data['started_date'] else '',
-                    phase_data['started_by'] or '',
-                    phase_data['completed_date'].strftime('%Y-%m-%d %H:%M:%S') if phase_data['completed_date'] else '',
-                    phase_data['completed_by'] or '',
-                    duration,
-                    phase_data.get('operator_comments', '')
+                    phase['phase_name'], phase['status'],
+                    phase['started_date'], phase['started_by'],
+                    phase['completed_date'], phase['completed_by'],
+                    phase['duration_hours'], phase['operator_comments']
                 ])
-            
-            writer.writerow([])  # Empty row for separation
-        
         return response
     
+    # Generate Excel export
     elif format_type == 'excel':
         import openpyxl
         from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+        from openpyxl.utils import get_column_letter
         
+        # Create a new workbook and select the active worksheet
         wb = openpyxl.Workbook()
         
         # Create summary sheet
-        summary_ws = wb.active
-        summary_ws.title = "Summary"
+        summary_sheet = wb.active
+        summary_sheet.title = "Production Summary"
+        
+        # Apply styles
+        header_font = Font(bold=True, color="FFFFFF")
+        header_fill = PatternFill(start_color="2C3E50", end_color="2C3E50", fill_type="solid")
+        header_alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        border = Border(
+            left=Side(style='thin'), right=Side(style='thin'),
+            top=Side(style='thin'), bottom=Side(style='thin')
+        )
+        
+        # Create title
+        summary_sheet.merge_cells('A1:I1')
+        title_cell = summary_sheet['A1']
+        title_cell.value = "Kampala Pharmaceutical Industries - BMR Production Timeline Summary"
+        title_cell.font = Font(bold=True, size=14)
+        title_cell.alignment = Alignment(horizontal="center")
+        
+        # Create report generation date
+        summary_sheet.merge_cells('A2:I2')
+        date_cell = summary_sheet['A2']
+        date_cell.value = f"Report Generated: {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        date_cell.alignment = Alignment(horizontal="center")
+        date_cell.font = Font(italic=True)
+        
+        # Add empty row
+        summary_sheet.append([])
         
         # Summary headers
-        summary_headers = [
-            'BMR Number', 'Product Name', 'Product Type', 'Created Date', 
-            'Total Time (Days)', 'Current Status', 'Current Phase',
-            'Created By', 'Approved By', 'Approved Date'
+        headers = [
+            "Batch Number", "Product Name", "Product Type", 
+            "Created Date", "Current Status", "Current Phase",
+            "Total Duration (Days)", "Completed", "Bottleneck Phase"
         ]
         
-        # Style summary headers
-        header_font = Font(bold=True, color="FFFFFF")
-        header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+        header_row = summary_sheet.row_dimensions[4]
+        header_row.height = 30
         
-        for col, header in enumerate(summary_headers, 1):
-            cell = summary_ws.cell(row=1, column=col, value=header)
+        for col_num, header in enumerate(headers, 1):
+            cell = summary_sheet.cell(row=4, column=col_num)
+            cell.value = header
             cell.font = header_font
             cell.fill = header_fill
-            cell.alignment = Alignment(horizontal="center")
+            cell.alignment = header_alignment
+            cell.border = border
+            summary_sheet.column_dimensions[get_column_letter(col_num)].width = 18
         
-        # Summary data rows
-        for row, item in enumerate(timeline_data, 2):
-            bmr = item['bmr']
-            summary_ws.cell(row=row, column=1, value=bmr.batch_number)
-            summary_ws.cell(row=row, column=2, value=bmr.product.product_name)
-            summary_ws.cell(row=row, column=3, value=bmr.product.product_type)
-            summary_ws.cell(row=row, column=4, value=bmr.created_date.strftime('%Y-%m-%d %H:%M:%S'))
-            summary_ws.cell(row=row, column=5, value=item['total_time_days'] or 'In Progress')
-            summary_ws.cell(row=row, column=6, value=bmr.get_status_display())
-            summary_ws.cell(row=row, column=7, value=item['current_phase'].phase.phase_name.replace('_', ' ').title() if item['current_phase'] else 'Completed')
-            summary_ws.cell(row=row, column=8, value=bmr.created_by.get_full_name() if bmr.created_by else '')
-            summary_ws.cell(row=row, column=9, value=bmr.approved_by.get_full_name() if bmr.approved_by else '')
-            summary_ws.cell(row=row, column=10, value=bmr.approved_date.strftime('%Y-%m-%d %H:%M:%S') if bmr.approved_date else '')
-        
-        # Create detailed timeline sheet
-        detail_ws = wb.create_sheet("Detailed Timeline")
-        
-        # Detailed timeline headers
-        detail_headers = [
-            'BMR Number', 'Product Name', 'Phase Name', 'Status', 
-            'Started Date', 'Started By', 'Completed Date', 'Completed By',
-            'Duration (Hours)', 'Phase Order', 'Comments'
-        ]
-        
-        for col, header in enumerate(detail_headers, 1):
-            cell = detail_ws.cell(row=1, column=col, value=header)
-            cell.font = header_font
-            cell.fill = header_fill
-            cell.alignment = Alignment(horizontal="center")
-        
-        # Detailed timeline data
-        row_num = 2
+        # Add data rows
+        row_num = 5
         for item in timeline_data:
             bmr = item['bmr']
+            # Find bottleneck phase (longest duration)
+            bottleneck = max(item['phase_timeline'], key=lambda x: x['duration_hours'] if x['duration_hours'] else 0, default={})
+            bottleneck_name = bottleneck.get('phase_name', 'N/A') if bottleneck else 'N/A'
             
-            for phase_data in item['phase_timeline']:
-                detail_ws.cell(row=row_num, column=1, value=bmr.batch_number)
-                detail_ws.cell(row=row_num, column=2, value=bmr.product.product_name)
-                detail_ws.cell(row=row_num, column=3, value=phase_data['phase_name'])
-                detail_ws.cell(row=row_num, column=4, value=phase_data['status'])
-                detail_ws.cell(row=row_num, column=5, value=phase_data['started_date'].strftime('%Y-%m-%d %H:%M:%S') if phase_data['started_date'] else '')
-                detail_ws.cell(row=row_num, column=6, value=phase_data['started_by'] or '')
-                detail_ws.cell(row=row_num, column=7, value=phase_data['completed_date'].strftime('%Y-%m-%d %H:%M:%S') if phase_data['completed_date'] else '')
-                detail_ws.cell(row=row_num, column=8, value=phase_data['completed_by'] or '')
-                detail_ws.cell(row=row_num, column=9, value=f"{phase_data['duration_hours']:.2f}" if phase_data.get('duration_hours') else '')
-                detail_ws.cell(row=row_num, column=10, value=phase_data.get('phase_order', ''))
-                detail_ws.cell(row=row_num, column=11, value=phase_data.get('operator_comments', ''))
+            # Get current phase
+            current_phase = "Completed"
+            if not item['is_completed']:
+                current_phases = [p for p in item['phase_timeline'] if p['status'] in ['In Progress', 'Pending']]
+                if current_phases:
+                    current_phase = current_phases[0]['phase_name']
+            
+            # Add row data
+            row_data = [
+                bmr.batch_number,
+                bmr.product.product_name,
+                bmr.product.product_type.replace('_', ' ').title(),
+                bmr.created_date.strftime('%Y-%m-%d'),
+                "Completed" if item['is_completed'] else "In Progress",
+                current_phase,
+                item['total_time_days'] if item['total_time_days'] else "In Progress",
+                "Yes" if item['is_completed'] else "No",
+                bottleneck_name
+            ]
+            
+            for col_num, cell_value in enumerate(row_data, 1):
+                cell = summary_sheet.cell(row=row_num, column=col_num)
+                cell.value = cell_value
+                cell.border = border
+                cell.alignment = Alignment(horizontal="center", vertical="center")
+            
+            row_num += 1
+        
+        # Create detail sheet for each BMR
+        for item in timeline_data:
+            bmr = item['bmr']
+            # Create sheet for this BMR
+            detail_sheet = wb.create_sheet(title=f"BMR-{bmr.batch_number}")
+            
+            # Title
+            detail_sheet.merge_cells('A1:H1')
+            title_cell = detail_sheet['A1']
+            title_cell.value = f"Detailed Timeline for BMR {bmr.batch_number} - {bmr.product.product_name}"
+            title_cell.font = Font(bold=True, size=14)
+            title_cell.alignment = Alignment(horizontal="center")
+            
+            # BMR information
+            detail_sheet.merge_cells('A2:H2')
+            info_cell = detail_sheet['A2']
+            info_cell.value = f"Product Type: {bmr.product.product_type.replace('_', ' ').title()} | Created: {bmr.created_date.strftime('%Y-%m-%d %H:%M:%S')}"
+            info_cell.font = Font(italic=True)
+            info_cell.alignment = Alignment(horizontal="center")
+            
+            detail_sheet.merge_cells('A3:H3')
+            time_cell = detail_sheet['A3']
+            time_cell.value = f"Total Production Time: {item['total_time_days']} days" if item['total_time_days'] else "Total Production Time: In Progress"
+            time_cell.font = Font(italic=True, bold=True)
+            time_cell.alignment = Alignment(horizontal="center")
+            
+            # Add empty row
+            detail_sheet.append([])
+            
+            # Detail headers
+            headers = [
+                "Phase Name", "Status", "Started Date", "Started By", 
+                "Completed Date", "Completed By", "Duration (Hours)", "Comments"
+            ]
+            
+            header_row = detail_sheet.row_dimensions[5]
+            header_row.height = 30
+            
+            for col_num, header in enumerate(headers, 1):
+                cell = detail_sheet.cell(row=5, column=col_num)
+                cell.value = header
+                cell.font = header_font
+                cell.fill = header_fill
+                cell.alignment = header_alignment
+                cell.border = border
+                detail_sheet.column_dimensions[get_column_letter(col_num)].width = 18
+            
+            # Add phase data
+            phase_row = 6
+            for phase in item['phase_timeline']:
+                # Format dates for display
+                started_date = phase['started_date'].strftime('%Y-%m-%d %H:%M') if phase['started_date'] else "Not Started"
+                completed_date = phase['completed_date'].strftime('%Y-%m-%d %H:%M') if phase['completed_date'] else "Not Completed"
                 
-                row_num += 1
+                phase_data = [
+                    phase['phase_name'],
+                    phase['status'],
+                    started_date,
+                    phase['started_by'] if phase['started_by'] else "",
+                    completed_date,
+                    phase['completed_by'] if phase['completed_by'] else "",
+                    phase['duration_hours'] if phase['duration_hours'] is not None else "",
+                    phase['operator_comments'] if phase['operator_comments'] else ""
+                ]
+                
+                # Apply styling based on status
+                row_fill = None
+                if phase['status'] == 'Completed':
+                    row_fill = PatternFill(start_color="E8F5E9", end_color="E8F5E9", fill_type="solid")
+                elif phase['status'] == 'In Progress':
+                    row_fill = PatternFill(start_color="FFF9C4", end_color="FFF9C4", fill_type="solid")
+                
+                for col_num, cell_value in enumerate(phase_data, 1):
+                    cell = detail_sheet.cell(row=phase_row, column=col_num)
+                    cell.value = cell_value
+                    cell.border = border
+                    if row_fill:
+                        cell.fill = row_fill
+                    
+                    # For comments, use wrap text
+                    if col_num == 8:  # Comments column
+                        cell.alignment = Alignment(wrap_text=True, vertical="top")
+                        detail_sheet.row_dimensions[phase_row].height = max(15, min(50, len(str(cell_value)) // 10 * 15))
+                    else:
+                        cell.alignment = Alignment(horizontal="center", vertical="center")
+                
+                phase_row += 1
         
-        # Auto-adjust column widths for both sheets
-        for ws in [summary_ws, detail_ws]:
-            for column in ws.columns:
-                max_length = 0
-                column_letter = column[0].column_letter
-                for cell in column:
-                    try:
-                        if len(str(cell.value)) > max_length:
-                            max_length = len(str(cell.value))
-                    except:
-                        pass
-                adjusted_width = min(max_length + 2, 50)
-                ws.column_dimensions[column_letter].width = adjusted_width
+        # Create response
+        response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response['Content-Disposition'] = f'attachment; filename="bmr_timeline_{timezone.now().strftime("%Y%m%d_%H%M%S")}.xlsx"'
         
-        response = HttpResponse(
-            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-        )
-        response['Content-Disposition'] = f'attachment; filename="bmr_detailed_timeline_{timezone.now().strftime("%Y%m%d_%H%M%S")}.xlsx"'
-        
+        # Save the workbook to the response
         wb.save(response)
         return response
+    
+    else:
+        return HttpResponse('Unsupported export format', content_type='text/plain')
