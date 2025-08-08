@@ -1,5 +1,6 @@
 from django.urls import path
 from . import views
+from django.views.generic.base import RedirectView
 
 app_name = 'dashboards'
 
@@ -38,11 +39,10 @@ urlpatterns = [
     path('finished-goods/', views.finished_goods_dashboard, name='finished_goods_dashboard'),
     
     # Admin Dashboard
+        # Redirect for old URL pattern
+    path('admin/', views.admin_redirect, name='admin_redirect'),
     path('admin-overview/', views.admin_dashboard, name='admin_dashboard'),
     path('admin/timeline/', views.admin_timeline_view, name='admin_timeline'),
     path('admin/fgs-monitor/', views.admin_fgs_monitor, name='admin_fgs_monitor'),
     path('admin/export-timeline/', views.export_timeline_data, name='export_timeline_data'),
-    
-    # Operator Workflow Chart
-    path('workflow-chart/', views.workflow_chart, name='workflow_chart'),
 ]

@@ -137,7 +137,7 @@ def dashboard_home(request):
 
 @login_required
 def admin_dashboard(request):
-    """Admin Dashboard for system overview and user management"""
+    """Enhanced Admin Dashboard with Timeline and Active Phases integrated"""
     if not request.user.is_staff:
         messages.error(request, 'Access denied. Admin privileges required.')
         return redirect('dashboards:dashboard_home')
@@ -152,33 +152,144 @@ def admin_dashboard(request):
     total_users = CustomUser.objects.count()
     active_users_count = CustomUser.objects.filter(is_active=True, last_login__gte=timezone.now() - timedelta(days=30)).count()
     
-    # Get FGS Store data
-    fgs_batches = BatchPhaseExecution.objects.filter(
-        phase__phase_name='finished_goods_store',
-        status__in=['completed', 'in_progress']
-    )
-    fgs_total_items = fgs_batches.count()
-    fgs_low_stock = fgs_batches.filter(
-        bmr__product__product_name__icontains='tablet'
-    ).count()  # This is a placeholder - you'd need proper inventory tracking
+    # === TIMELINE DATA INTEGRATION ===
+    # Get all BMRs with timeline data (same logic as admin_timeline_view)
+    bmrs = BMR.objects.select_related('product', 'created_by', 'approved_by').all()
+    timeline_data = []
     
-    bmrs_this_month = BMR.objects.filter(
-        created_date__month=timezone.now().month,
-        created_date__year=timezone.now().year
-    ).count()
+    for bmr in bmrs:
+        phases = BatchPhaseExecution.objects.filter(bmr=bmr).select_related('phase').order_by('phase__phase_order')
+        bmr_created = bmr.created_date
+        fgs_completed = phases.filter(
+            phase__phase_name='finished_goods_store',
+            status='completed'
+        ).first()
+        
+        total_time_days = None
+        if fgs_completed and fgs_completed.completed_date:
+            total_time_days = (fgs_completed.completed_date - bmr_created).days
+            
+        phase_timeline = []
+        for phase in phases:
+            phase_data = {
+                'phase_name': phase.phase.phase_name.replace('_', ' ').title(),
+                'status': phase.status.title(),
+                'started_date': phase.started_date,
+                'completed_date': phase.completed_date,
+                'started_by': phase.started_by.get_full_name() if phase.started_by else None,
+                'completed_by': phase.completed_by.get_full_name() if phase.completed_by else None,
+                'duration_hours': None,
+                'operator_comments': getattr(phase, 'operator_comments', '') or '',
+                'phase_order': phase.phase.phase_order if hasattr(phase.phase, 'phase_order') else 0,
+            }
+            if phase.started_date and phase.completed_date:
+                duration = phase.completed_date - phase.started_date
+                phase_data['duration_hours'] = round(duration.total_seconds() / 3600, 2)
+            elif phase.started_date and not phase.completed_date:
+                duration = timezone.now() - phase.started_date
+                phase_data['duration_hours'] = round(duration.total_seconds() / 3600, 2)
+            phase_timeline.append(phase_data)
+            
+        timeline_data.append({
+            'bmr': bmr,
+            'total_time_days': total_time_days,
+            'phase_timeline': phase_timeline,
+            'current_phase': phases.filter(status__in=['pending', 'in_progress']).first(),
+            'is_completed': fgs_completed is not None,
+        })
     
-    total_products = Product.objects.count()
-    products_by_type = Product.objects.values('product_type').annotate(count=Count('product_type'))
+    # Timeline summary stats
+    completed_count = sum(1 for item in timeline_data if item['is_completed'])
+    in_progress_count = len(timeline_data) - completed_count
     
-    # Active workflow phases
+    # Calculate average production time
+    completed_times = [item['total_time_days'] for item in timeline_data if item['total_time_days']]
+    avg_production_time = round(sum(completed_times) / len(completed_times)) if completed_times else None
+    
+    # === ACTIVE PHASES DATA ===
+    # Get currently active phases with enhanced data
     active_phases = BatchPhaseExecution.objects.filter(
         status__in=['pending', 'in_progress']
-    ).count()
+    ).select_related('bmr__product', 'phase', 'started_by').order_by('-started_date')
     
-    completed_today = BatchPhaseExecution.objects.filter(
-        completed_date__date=timezone.now().date(),
-        status='completed'
-    ).count()
+    # Add duration calculation for active phases
+    for phase in active_phases:
+        if phase.started_date:
+            duration = timezone.now() - phase.started_date
+            phase.duration_hours = round(duration.total_seconds() / 3600, 1)
+        else:
+            phase.duration_hours = 0
+    
+    # Chart data - Product Type Distribution
+    from products.models import Product
+    product_types = Product.objects.values('product_type').annotate(count=Count('product_type'))
+    tablet_count = 0
+    capsule_count = 0
+    ointment_count = 0
+    
+    for item in product_types:
+        product_type = item['product_type'].lower() if item['product_type'] else ''
+        if 'tablet' in product_type:
+            tablet_count += item['count']
+        elif 'capsule' in product_type:
+            capsule_count += item['count']
+        elif 'ointment' in product_type or 'cream' in product_type:
+            ointment_count += item['count']
+    
+    # Phase completion data for chart
+    phase_data = {}
+    common_phases = ['mixing', 'drying', 'granulation', 'compression', 'packing']
+    
+    for phase_name in common_phases:
+        completed = BatchPhaseExecution.objects.filter(
+            phase__phase_name__icontains=phase_name,
+            status='completed'
+        ).count()
+        
+        in_progress = BatchPhaseExecution.objects.filter(
+            phase__phase_name__icontains=phase_name,
+            status__in=['pending', 'in_progress']
+        ).count()
+        
+        phase_data[f"{phase_name}_completed"] = completed
+        phase_data[f"{phase_name}_inprogress"] = in_progress
+    
+    # Weekly production trend data
+    current_date = timezone.now().date()
+    week_start = current_date - timedelta(days=current_date.weekday())
+    
+    weekly_data = {}
+    for i in range(4):
+        week_end = week_start - timedelta(days=1)
+        week_start_prev = week_start - timedelta(days=7)
+        
+        started = BMR.objects.filter(
+            created_date__date__gte=week_start_prev,
+            created_date__date__lte=week_end
+        ).count()
+        
+        completed = BatchPhaseExecution.objects.filter(
+            phase__phase_name='finished_goods_store',
+            completed_date__date__gte=week_start_prev,
+            completed_date__date__lte=week_end,
+            status='completed'
+        ).count()
+        
+        weekly_data[f"started_week{4-i}"] = started
+        weekly_data[f"completed_week{4-i}"] = completed
+        
+        week_start = week_start_prev
+        
+    # Quality Control data for chart
+    qc_phases = BatchPhaseExecution.objects.filter(
+        phase__phase_name__icontains='qc'
+    )
+    
+    qc_data = {
+        'passed': qc_phases.filter(status='completed').count(),
+        'failed': qc_phases.filter(status='failed').count(),
+        'pending': qc_phases.filter(status__in=['pending', 'in_progress']).count(),
+    }
     
     # Recent activity
     recent_bmrs = BMR.objects.select_related('product', 'created_by').order_by('-created_date')[:10]
@@ -218,6 +329,165 @@ def admin_dashboard(request):
         ).count(),
     }
     
+    # Get enhanced analytics - using exact database data
+    # Monthly production stats
+    monthly_stats = {
+        'labels': [],
+        'created': [],
+        'completed': [],
+        'rejected': []
+    }
+    
+    # Get last 6 months of data
+    current_month = timezone.now().date().replace(day=1)
+    for i in range(6):
+        month_start = current_month - timedelta(days=i*30)
+        month_end = month_start + timedelta(days=29)
+        month_label = month_start.strftime('%b %Y')
+        
+        created_count = BMR.objects.filter(
+            created_date__date__gte=month_start,
+            created_date__date__lte=month_end
+        ).count()
+        
+        completed_count = BMR.objects.filter(
+            status='completed',
+            approved_date__date__gte=month_start,
+            approved_date__date__lte=month_end
+        ).count()
+        
+        rejected_count = BMR.objects.filter(
+            status='rejected',
+            approved_date__date__gte=month_start,
+            approved_date__date__lte=month_end
+        ).count()
+        
+        monthly_stats['labels'].insert(0, month_label)
+        monthly_stats['created'].insert(0, created_count)
+        monthly_stats['completed'].insert(0, completed_count)
+        monthly_stats['rejected'].insert(0, rejected_count)
+    
+    # Cycle times - actual database data
+    cycle_times = {
+        'labels': [],
+        'avg_days': []
+    }
+    
+    # Get average cycle time by product type
+    for product_type in ['tablet', 'capsule', 'ointment']:
+        bmrs_of_type = BMR.objects.filter(
+            product__product_type__icontains=product_type,
+            status='completed'
+        )
+        
+        total_days = 0
+        count = 0
+        for bmr in bmrs_of_type:
+            fgs_phase = BatchPhaseExecution.objects.filter(
+                bmr=bmr,
+                phase__phase_name='finished_goods_store',
+                status='completed'
+            ).first()
+            
+            if fgs_phase and fgs_phase.completed_date:
+                days = (fgs_phase.completed_date - bmr.created_date).days
+                total_days += days
+                count += 1
+        
+        if count > 0:
+            cycle_times['labels'].append(product_type.title())
+            cycle_times['avg_days'].append(round(total_days / count, 1))
+    
+    # Bottleneck analysis - actual phase duration data
+    bottleneck_analysis = []
+    phase_names = ['mixing', 'granulation', 'compression', 'coating', 'packaging_material_release']
+    
+    for phase_name in phase_names:
+        phases = BatchPhaseExecution.objects.filter(
+            phase__phase_name__icontains=phase_name,
+            status='completed',
+            started_date__isnull=False,
+            completed_date__isnull=False
+        )
+        
+        total_hours = 0
+        count = 0
+        for phase in phases:
+            duration = (phase.completed_date - phase.started_date).total_seconds() / 3600
+            total_hours += duration
+            count += 1
+        
+        if count > 0:
+            avg_hours = round(total_hours / count, 2)
+            bottleneck_analysis.append({
+                'phase': phase_name.replace('_', ' ').title(),
+                'avg_duration': avg_hours,
+                'total_executions': count
+            })
+    
+    # Sort by average duration (longest first)
+    bottleneck_analysis.sort(key=lambda x: x['avg_duration'], reverse=True)
+    
+    # Quality metrics - actual QC data
+    quality_metrics = {
+        'labels': [],
+        'pass_rates': [],
+        'fail_rates': []
+    }
+    
+    qc_phase_names = ['post_mixing_qc', 'post_compression_qc', 'post_blending_qc']
+    for qc_phase in qc_phase_names:
+        total_tests = BatchPhaseExecution.objects.filter(
+            phase__phase_name=qc_phase
+        ).count()
+        
+        passed_tests = BatchPhaseExecution.objects.filter(
+            phase__phase_name=qc_phase,
+            status='completed'
+        ).count()
+        
+        failed_tests = BatchPhaseExecution.objects.filter(
+            phase__phase_name=qc_phase,
+            status='failed'
+        ).count()
+        
+        if total_tests > 0:
+            pass_rate = round((passed_tests / total_tests) * 100, 1)
+            fail_rate = round((failed_tests / total_tests) * 100, 1)
+            
+            quality_metrics['labels'].append(qc_phase.replace('_', ' ').title())
+            quality_metrics['pass_rates'].append(pass_rate)
+            quality_metrics['fail_rates'].append(fail_rate)
+    
+    # Productivity metrics - actual operator data
+    top_operators = []
+    operators = CustomUser.objects.filter(
+        role__in=['mixing_operator', 'compression_operator', 'granulation_operator', 'packing_operator']
+    )
+    
+    for operator in operators:
+        completed_phases = BatchPhaseExecution.objects.filter(
+            completed_by=operator,
+            status='completed'
+        ).count()
+        
+        if completed_phases > 0:
+            top_operators.append({
+                'name': operator.get_full_name(),
+                'completions': completed_phases,
+                'role': operator.get_role_display()
+            })
+    
+    # Sort by completions (highest first) and take top 10
+    top_operators.sort(key=lambda x: x['completions'], reverse=True)
+    top_operators = top_operators[:10]
+    
+    productivity_metrics = {
+        'top_operators': top_operators,
+        'total_operators': operators.count(),
+        'total_completions': sum([op['completions'] for op in top_operators])
+    }
+    
     # Performance metrics - Average cycle time
     completed_bmrs = BMR.objects.filter(status='approved').annotate(
         cycle_time=ExpressionWrapper(
@@ -225,6 +495,25 @@ def admin_dashboard(request):
             output_field=DateTimeField()
         )
     )
+    
+    # Calculate average time from BMR creation to FGS for completed batches
+    avg_production_time = None
+    completed_productions = []
+    
+    for bmr in BMR.objects.filter(status='completed'):
+        first_phase = BatchPhaseExecution.objects.filter(bmr=bmr).order_by('phase__phase_order').first()
+        last_phase = BatchPhaseExecution.objects.filter(
+            bmr=bmr, 
+            phase__phase_name='finished_goods_store',
+            status='completed'
+        ).first()
+        
+        if first_phase and last_phase and first_phase.started_date and last_phase.completed_date:
+            duration_days = (last_phase.completed_date - bmr.created_date).days
+            completed_productions.append(duration_days)
+    
+    if completed_productions:
+        avg_production_time = round(sum(completed_productions) / len(completed_productions), 1)
     
     context = {
         'user': request.user,
@@ -236,30 +525,37 @@ def admin_dashboard(request):
         'rejected_batches': rejected_batches,
         # System Status
         'active_users_count': active_users_count,
-        # FGS Store data
-        'fgs_total_items': fgs_total_items,
-        'fgs_low_stock': fgs_low_stock,
-        # Detailed stats for other components
-        'stats': {
-            'total_users': total_users,
-            'active_users': active_users_count,
-            'total_bmrs': total_bmrs,
-            'bmrs_this_month': bmrs_this_month,
-            'total_products': total_products,
-            'active_phases': active_phases,
-            'completed_today': completed_today,
-            'pending_approvals': pending_approvals,
-            'failed_phases': failed_phases,
-        },
-        'production_stats': production_stats,
-        'users_by_role': CustomUser.objects.values('role').annotate(count=Count('role')).order_by('role'),
-        'products_by_type': products_by_type,
+        # Chart data
+        'tablet_count': tablet_count,
+        'capsule_count': capsule_count,
+        'ointment_count': ointment_count,
+        # Phase data for charts
+        'mixing_completed': phase_data.get('mixing_completed', 0),
+        'mixing_inprogress': phase_data.get('mixing_inprogress', 0),
+        'drying_completed': phase_data.get('drying_completed', 0),
+        'drying_inprogress': phase_data.get('drying_inprogress', 0),
+        'granulation_completed': phase_data.get('granulation_completed', 0),
+        'granulation_inprogress': phase_data.get('granulation_inprogress', 0),
+        'compression_completed': phase_data.get('compression_completed', 0),
+        'compression_inprogress': phase_data.get('compression_inprogress', 0),
+        'packing_completed': phase_data.get('packing_completed', 0),
+        'packing_inprogress': phase_data.get('packing_inprogress', 0),
+        # Weekly trend data
+        'weekly_data': weekly_data,
+        # QC data
+        'qc_data': qc_data,
+        # === NEW: Timeline and Active Phases Data ===
+        'timeline_data': timeline_data[:10],  # Show first 10 for performance
+        'completed_count': completed_count,
+        'in_progress_count': in_progress_count,
+        'avg_production_time': avg_production_time,
+        'active_phases': active_phases[:10],  # Show first 10 active phases
+        # Recent activity
         'recent_bmrs': recent_bmrs,
-        'recent_users': recent_users,
-        'completed_bmrs_count': completed_bmrs.count(),
     }
     
-    return render(request, 'dashboards/admin_dashboard.html', context)
+    # Restore the original working dashboard
+    return render(request, 'dashboards/admin_dashboard_clean.html', context)
 
 @login_required
 def qa_dashboard(request):
@@ -833,10 +1129,18 @@ def packaging_dashboard(request):
                     phase_execution.operator_comments = f"Packaging materials released by {request.user.get_full_name()}. Notes: {notes}"
                     phase_execution.save()
                     
+                    # Set session variables for next phase notification
+                    request.session['completed_phase'] = phase_execution.phase.phase_name
+                    request.session['completed_bmr'] = phase_execution.bmr.id
+                    
                     # Trigger next phase in workflow (should be packing phases)
                     WorkflowService.trigger_next_phase(phase_execution.bmr, phase_execution.phase)
                     
-                    messages.success(request, f'Packaging materials released for batch {phase_execution.bmr.batch_number}. Packing phases are now available.')
+                    # Determine correct message based on product type
+                    if phase_execution.bmr.product.product_type == 'tablet' and getattr(phase_execution.bmr.product, 'tablet_type', None) == 'tablet_2':
+                        messages.success(request, f'Packaging materials released for batch {phase_execution.bmr.batch_number}. Bulk packing is now available.')
+                    else:
+                        messages.success(request, f'Packaging materials released for batch {phase_execution.bmr.batch_number}. Packing phases are now available.')
                     
             except Exception as e:
                 messages.error(request, f'Error processing packaging material release: {str(e)}')
@@ -886,6 +1190,34 @@ def packaging_dashboard(request):
         'dashboard_title': 'Packaging Store Dashboard',
         'operator_history': operator_history,
     }
+    
+    # Get next phase info for notification
+    completed_phase = request.session.pop('completed_phase', None)
+    bmr_id = request.session.pop('completed_bmr', None)
+    bmr = None
+    next_phase = None
+    if bmr_id:
+        try:
+            bmr = BMR.objects.get(id=bmr_id)
+            # For tablet type 2, make sure bulk packing comes before secondary packing
+            if bmr.product.product_type == 'tablet' and getattr(bmr.product, 'tablet_type', None) == 'tablet_2':
+                # Check if material release was just completed
+                if completed_phase == 'packaging_material_release':
+                    next_phase = BatchPhaseExecution.objects.filter(bmr=bmr, phase__phase_name='bulk_packing').first()
+            
+            # Fallback to standard next phase logic if no specific phase found
+            if not next_phase:
+                next_phase = WorkflowService.get_next_phase(bmr)
+        except BMR.DoesNotExist:
+            pass
+    
+    # Add notification context
+    context.update({
+        'completed_phase': completed_phase,
+        'bmr': bmr,
+        'next_phase': next_phase
+    })
+    
     return render(request, 'dashboards/packaging_dashboard.html', context)
 
 @login_required
@@ -1190,6 +1522,68 @@ def admin_fgs_monitor(request):
         latest_storage=Max('completed_date')
     ).order_by('bmr__product__product_type', '-latest_storage')
     
+    # Get production data by product type
+    product_type_data = {}
+    completed_bmrs = BatchPhaseExecution.objects.filter(
+        phase__phase_name='finished_goods_store',
+        status='completed'
+    ).select_related('bmr__product')
+    
+    for execution in completed_bmrs:
+        product_type = execution.bmr.product.product_type
+        if product_type not in product_type_data:
+            product_type_data[product_type] = 0
+        product_type_data[product_type] += 1
+    
+    # Get phase completion status across all batches
+    phase_completion = {}
+    all_phases = BatchPhaseExecution.objects.values('phase__phase_name').distinct()
+    for phase_dict in all_phases:
+        phase_name = phase_dict['phase__phase_name']
+        if phase_name:
+            total = BatchPhaseExecution.objects.filter(phase__phase_name=phase_name).count()
+            completed = BatchPhaseExecution.objects.filter(
+                phase__phase_name=phase_name,
+                status='completed'
+            ).count()
+            if total > 0:  # Avoid division by zero
+                completion_rate = (completed / total) * 100
+            else:
+                completion_rate = 0
+            phase_completion[phase_name] = {
+                'total': total,
+                'completed': completed,
+                'completion_rate': round(completion_rate, 1)
+            }
+    
+    # Get weekly production trend
+    today = timezone.now().date()
+    start_date = today - timezone.timedelta(days=28)  # Last 4 weeks
+    
+    weekly_completions = {}
+    for i in range(4):  # 4 weeks
+        week_start = start_date + timezone.timedelta(days=i*7)
+        week_end = week_start + timezone.timedelta(days=6)
+        week_label = f"{week_start.strftime('%d %b')} - {week_end.strftime('%d %b')}"
+        
+        weekly_completions[week_label] = BatchPhaseExecution.objects.filter(
+            phase__phase_name='finished_goods_store',
+            status='completed',
+            completed_date__date__range=[week_start, week_end]
+        ).count()
+    
+    # QC pass/fail data
+    qc_stats = {
+        'passed': BatchPhaseExecution.objects.filter(
+            phase__phase_name__in=['post_compression_qc', 'post_mixing_qc', 'post_blending_qc'],
+            status='completed'
+        ).count(),
+        'failed': BatchPhaseExecution.objects.filter(
+            phase__phase_name__in=['post_compression_qc', 'post_mixing_qc', 'post_blending_qc'],
+            status='failed'
+        ).count()
+    }
+    
     context = {
         'user': request.user,
         'fgs_pending': fgs_pending,
@@ -1198,6 +1592,10 @@ def admin_fgs_monitor(request):
         'fgs_stats': fgs_stats,
         'products_in_fgs': products_in_fgs,
         'dashboard_title': 'Finished Goods Store Monitor',
+        'product_type_data': product_type_data,
+        'phase_completion': phase_completion,
+        'weekly_production': weekly_completions,
+        'qc_stats': qc_stats,
     }
     
     return render(request, 'dashboards/admin_fgs_monitor.html', context)
@@ -1224,9 +1622,9 @@ def export_timeline_data(request, timeline_data=None, format_type=None):
                 phase__phase_name='finished_goods_store',
                 status='completed'
             ).first()
-            total_time_days = None
+            total_time_hours = None
             if fgs_completed and fgs_completed.completed_date:
-                total_time_days = (fgs_completed.completed_date - bmr_created).days
+                total_time_hours = round((fgs_completed.completed_date - bmr_created).total_seconds() / 3600, 2)
             phase_timeline = []
             for phase in phases:
                 phase_data = {
@@ -1249,7 +1647,7 @@ def export_timeline_data(request, timeline_data=None, format_type=None):
                 phase_timeline.append(phase_data)
             timeline_data.append({
                 'bmr': bmr,
-                'total_time_days': total_time_days,
+                'total_time_hours': total_time_hours,
                 'phase_timeline': phase_timeline,
                 'current_phase': phases.filter(status__in=['pending', 'in_progress']).first(),
                 'is_completed': fgs_completed is not None,
@@ -1272,7 +1670,7 @@ def export_timeline_data(request, timeline_data=None, format_type=None):
             writer.writerow([f"BMR: {bmr.batch_number} - {bmr.product.product_name}"])
             writer.writerow([f"Product Type: {bmr.product.product_type}"])
             writer.writerow([f"Created: {bmr.created_date.strftime('%Y-%m-%d %H:%M:%S')}"])
-            writer.writerow([f"Total Production Time: {item['total_time_days']} days" if item['total_time_days'] else "In Progress"])
+            writer.writerow([f"Total Production Time: {item['total_time_hours']} hours" if item['total_time_hours'] else "In Progress"])
             writer.writerow([])  # Empty row
             writer.writerow([
                 'Phase Name', 'Status', 'Started Date', 'Started By', 
@@ -1330,7 +1728,7 @@ def export_timeline_data(request, timeline_data=None, format_type=None):
         headers = [
             "Batch Number", "Product Name", "Product Type", 
             "Created Date", "Current Status", "Current Phase",
-            "Total Duration (Days)", "Completed", "Bottleneck Phase"
+            "Total Duration (Hours)", "Completed", "Bottleneck Phase"
         ]
         
         header_row = summary_sheet.row_dimensions[4]
@@ -1368,7 +1766,7 @@ def export_timeline_data(request, timeline_data=None, format_type=None):
                 bmr.created_date.strftime('%Y-%m-%d'),
                 "Completed" if item['is_completed'] else "In Progress",
                 current_phase,
-                item['total_time_days'] if item['total_time_days'] else "In Progress",
+                item['total_time_hours'] if item['total_time_hours'] else "In Progress",
                 "Yes" if item['is_completed'] else "No",
                 bottleneck_name
             ]
@@ -1403,7 +1801,7 @@ def export_timeline_data(request, timeline_data=None, format_type=None):
             
             detail_sheet.merge_cells('A3:H3')
             time_cell = detail_sheet['A3']
-            time_cell.value = f"Total Production Time: {item['total_time_days']} days" if item['total_time_days'] else "Total Production Time: In Progress"
+            time_cell.value = f"Total Production Time: {item['total_time_hours']} hours" if item['total_time_hours'] else "Total Production Time: In Progress"
             time_cell.font = Font(italic=True, bold=True)
             time_cell.alignment = Alignment(horizontal="center")
             
@@ -1479,3 +1877,9 @@ def export_timeline_data(request, timeline_data=None, format_type=None):
     
     else:
         return HttpResponse('Unsupported export format', content_type='text/plain')
+
+
+# Redirect view for old admin dashboard URL
+def admin_redirect(request):
+    # Direct redirect to admin dashboard function
+    return admin_dashboard(request)
