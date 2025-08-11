@@ -81,7 +81,7 @@ class ProductIngredient(models.Model):
     supplier = models.CharField(max_length=200, blank=True)
     
     def __str__(self):
-        return f"{self.product.product_code} - {self.ingredient_name}"
+        return f"{self.product.product_name} - {self.ingredient_name}"
 
 class ProductSpecification(models.Model):
     """Product specifications and quality parameters"""
@@ -92,4 +92,4 @@ class ProductSpecification(models.Model):
     acceptance_criteria = models.CharField(max_length=200)
     
     def __str__(self):
-        return f"{self.product.product_code} - {self.parameter_name}"
+        return f"{self.product.product_name} - {self.parameter_name}"

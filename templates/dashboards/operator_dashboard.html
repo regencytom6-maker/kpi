@@ -23,39 +23,73 @@
         </div>
     </div>
 
+    <!-- Quick Navigation -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body py-2">
+                    <div class="d-flex justify-content-center">
+                        <nav class="btn-group" role="group">
+                            <a href="{% url 'dashboards:dashboard_home' %}" class="btn btn-outline-primary btn-sm">
+                                <i class="fas fa-home me-1"></i>Dashboard
+                            </a>
+                            <a href="{% url 'reports:timeline_list' %}" class="btn btn-outline-info btn-sm">
+                                <i class="fas fa-project-diagram me-1"></i>Visual Timeline
+                            </a>
+                            <a href="{% url 'reports:comments_report' %}" class="btn btn-outline-success btn-sm">
+                                <i class="fas fa-comments me-1"></i>Comments
+                            </a>
+                            <a href="{% url 'bmr:list' %}" class="btn btn-outline-warning btn-sm">
+                                <i class="fas fa-file-medical me-1"></i>BMRs
+                            </a>
+                        </nav>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Statistics Cards -->
     <div class="row mb-4">
         <div class="col-md-3">
-            <div class="card text-white bg-primary mb-3">
-                <div class="card-body">
-                    <h6 class="card-title"><i class="fas fa-clipboard-list"></i> Total Batches</h6>
-                    <h3 class="card-text">{{ stats.total_batches }}</h3>
+            <a href="?filter=total_batches" class="text-decoration-none">
+                <div class="card text-white bg-primary mb-3">
+                    <div class="card-body">
+                        <h6 class="card-title"><i class="fas fa-clipboard-list"></i> Total Batches</h6>
+                        <h3 class="card-text">{{ stats.total_batches }}</h3>
+                    </div>
                 </div>
-            </div>
+            </a>
         </div>
         <div class="col-md-3">
-            <div class="card text-white bg-success mb-3">
-                <div class="card-body">
-                    <h6 class="card-title"><i class="fas fa-check-circle"></i> Completed Today</h6>
-                    <h3 class="card-text">{{ stats.completed_today }}</h3>
+            <a href="?filter=completed_today" class="text-decoration-none">
+                <div class="card text-white bg-success mb-3">
+                    <div class="card-body">
+                        <h6 class="card-title"><i class="fas fa-check-circle"></i> Completed Today</h6>
+                        <h3 class="card-text">{{ stats.completed_today }}</h3>
+                    </div>
                 </div>
-            </div>
+            </a>
         </div>
         <div class="col-md-3">
-            <div class="card text-white bg-info mb-3">
-                <div class="card-body">
-                    <h6 class="card-title"><i class="fas fa-spinner"></i> In Progress</h6>
-                    <h3 class="card-text">{{ stats.in_progress_phases }}</h3>
+            <a href="?filter=in_progress" class="text-decoration-none">
+                <div class="card text-white bg-info mb-3">
+                    <div class="card-body">
+                        <h6 class="card-title"><i class="fas fa-spinner"></i> In Progress</h6>
+                        <h3 class="card-text">{{ stats.in_progress_phases }}</h3>
+                    </div>
                 </div>
-            </div>
+            </a>
         </div>
         <div class="col-md-3">
-            <div class="card text-white bg-warning mb-3">
-                <div class="card-body">
-                    <h6 class="card-title"><i class="fas fa-exclamation-circle"></i> Pending</h6>
-                    <h3 class="card-text">{{ stats.pending_phases }}</h3>
+            <a href="?filter=pending" class="text-decoration-none">
+                <div class="card text-white bg-warning mb-3">
+                    <div class="card-body">
+                        <h6 class="card-title"><i class="fas fa-exclamation-circle"></i> Pending</h6>
+                        <h3 class="card-text">{{ stats.pending_phases }}</h3>
+                    </div>
                 </div>
-            </div>
+            </a>
         </div>
     </div>
 

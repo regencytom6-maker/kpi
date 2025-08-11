@@ -35,6 +35,8 @@ INSTALLED_APPS = [
     'bmr',
     'workflow',
     'dashboards',
+    'reports',
+    'fgs_management',
 ]
 
 MIDDLEWARE = [
@@ -46,7 +48,8 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-]
+
+    'accounts.middleware.session_timeout.SessionTimeoutMiddleware',]
 
 ROOT_URLCONF = 'kampala_pharma.urls'
 
@@ -165,8 +168,11 @@ AUTH_USER_MODEL = 'accounts.CustomUser'
 # Login configuration
 LOGIN_URL = '/accounts/login/'
 LOGIN_REDIRECT_URL = '/'
-LOGOUT_REDIRECT_URL = '/'
+LOGOUT_REDIRECT_URL = '/accounts/login/'
 
 # Batch number settings
 BATCH_NUMBER_PREFIX_LENGTH = 3
 BATCH_NUMBER_YEAR_LENGTH = 4
+
+# Session timeout setting (12 hours = 43200 seconds)
+SESSION_TIMEOUT = 43200

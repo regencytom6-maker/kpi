@@ -18,7 +18,50 @@
     </div>
 </div>
 
-<!-- My History Section -->
+
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card dashboard-card border-primary bg-primary text-white">
+            <div class="card-body text-center">
+                <i class="fas fa-file-alt fa-2x text-white mb-2"></i>
+                <h5 class="card-title">Total BMRs</h5>
+                <h3 class="text-white">{{ total_bmrs }}</h3>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card dashboard-card border-warning bg-warning text-dark">
+            <div class="card-body text-center">
+                <i class="fas fa-edit fa-2x text-dark mb-2"></i>
+                <h5 class="card-title">Draft BMRs</h5>
+                <h3 class="text-dark">{{ draft_bmrs }}</h3>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card dashboard-card border-info bg-info text-white">
+            <div class="card-body text-center">
+                <i class="fas fa-paper-plane fa-2x text-white mb-2"></i>
+                <h5 class="card-title">Submitted BMRs</h5>
+                <h3 class="text-white">{{ submitted_bmrs }}</h3>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card dashboard-card border-success bg-success text-white">
+            <div class="card-body text-center">
+                <i class="fas fa-user-check fa-2x text-white mb-2"></i>
+                <h5 class="card-title">My BMRs</h5>
+                <h3 class="text-white">{{ my_bmrs }}</h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- My History Section (moved below cards) -->
 <div class="row mb-4">
     <div class="col-12">
         <div class="card shadow-sm">
@@ -48,49 +91,6 @@
         </div>
     </div>
 </div>
-
-<div class="row g-3 mb-4">
-    <div class="col-md-3">
-        <div class="card dashboard-card border-primary">
-            <div class="card-body text-center">
-                <i class="fas fa-file-alt fa-2x text-primary mb-2"></i>
-                <h5 class="card-title">Total BMRs</h5>
-                <h3 class="text-primary">{{ total_bmrs }}</h3>
-            </div>
-        </div>
-    </div>
-    
-    <div class="col-md-3">
-        <div class="card dashboard-card border-warning">
-            <div class="card-body text-center">
-                <i class="fas fa-edit fa-2x text-warning mb-2"></i>
-                <h5 class="card-title">Draft BMRs</h5>
-                <h3 class="text-warning">{{ draft_bmrs }}</h3>
-            </div>
-        </div>
-    </div>
-    
-    <div class="col-md-3">
-        <div class="card dashboard-card border-info">
-            <div class="card-body text-center">
-                <i class="fas fa-paper-plane fa-2x text-info mb-2"></i>
-                <h5 class="card-title">Submitted BMRs</h5>
-                <h3 class="text-info">{{ submitted_bmrs }}</h3>
-            </div>
-        </div>
-    </div>
-    
-    <div class="col-md-3">
-        <div class="card dashboard-card border-success">
-            <div class="card-body text-center">
-                <i class="fas fa-user-check fa-2x text-success mb-2"></i>
-                <h5 class="card-title">My BMRs</h5>
-                <h3 class="text-success">{{ my_bmrs }}</h3>
-            </div>
-        </div>
-    </div>
-</div>
-
 <div class="row">
     <div class="col-md-8">
         <div class="card">

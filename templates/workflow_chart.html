@@ -23,70 +23,6 @@
     </style>
 </head>
 <body>
-    <!-- Operator Dashboard Section (Dynamic) -->
-    <div class="container-fluid mt-4">
-        <div class="row mb-4">
-            <div class="col-12">
-                <div class="card shadow-sm">
-                    <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-                        <span><i class="fas fa-user-cog"></i> Operator Dashboard</span>
-                        <button class="btn btn-outline-light btn-sm" onclick="downloadHistory()"><i class="fas fa-download"></i> Download History</button>
-                    </div>
-                    <div class="card-body">
-                        <div class="row">
-                            <div class="col-md-4">
-                                <h6><i class="fas fa-history text-primary"></i> My History</h6>
-                                <div style="max-height: 180px; overflow-y: auto;">
-                                    <table class="table table-sm table-bordered mb-0">
-                                        <thead class="table-light">
-                                            <tr>
-                                                <th>Date</th>
-                                                <th>Batch</th>
-                                                <th>Phase</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="operator-history">
-                                            {% for entry in operator_history %}
-                                            <tr><td>{{ entry.date }}</td><td>{{ entry.batch }}</td><td>{{ entry.phase }}</td></tr>
-                                            {% empty %}
-                                            <tr><td colspan="3" class="text-center text-muted">No history found.</td></tr>
-                                            {% endfor %}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <h6><i class="fas fa-chart-bar text-success"></i> My Statistics</h6>
-                                <ul class="list-group mb-2">
-                                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                                        Batches Handled <span class="badge bg-primary">{{ operator_stats.batches_handled }}</span>
-                                    </li>
-                                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                                        Success Rate <span class="badge bg-success">{{ operator_stats.success_rate }}%</span>
-                                    </li>
-                                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                                        Avg. Completion Time <span class="badge bg-info text-dark">{{ operator_stats.avg_completion_time }}</span>
-                                    </li>
-                                </ul>
-                                <div class="alert alert-info p-2 mb-0"><i class="fas fa-bell"></i> {{ operator_stats.assignment_status }}</div>
-                            </div>
-                            <div class="col-md-4">
-                                <h6><i class="fas fa-tasks text-warning"></i> Current Assignments</h6>
-                                <ul class="list-group">
-                                    {% for assignment in operator_assignments %}
-                                    <li class="list-group-item">{{ assignment }}</li>
-                                    {% empty %}
-                                    <li class="list-group-item text-muted">No current assignments.</li>
-                                    {% endfor %}
-                                </ul>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    <!-- End Operator Dashboard -->
     <div class="container-fluid mt-4">
         <div class="row">
             <div class="col-12 text-center">
@@ -97,7 +33,7 @@
         </div>
 
         <!-- Tablet Workflow -->
-        <div class="row workflow-card clickable-card" onclick="goToBatchDetail('BMR20250006')">
+        <div class="row workflow-card">
             <div class="col-12">
                 <div class="card">
                     <div class="card-header bg-primary text-white">
@@ -213,7 +149,7 @@
         </div>
 
         <!-- Ointment Workflow -->
-        <div class="row workflow-card clickable-card" onclick="goToBatchDetail('BMR20250007')">
+        <div class="row workflow-card">
             <div class="col-12">
                 <div class="card">
                     <div class="card-header bg-success text-white">
@@ -306,7 +242,7 @@
         </div>
 
         <!-- Capsule Workflow -->
-        <div class="row workflow-card clickable-card" onclick="goToBatchDetail('BMR20250008')">
+        <div class="row workflow-card">
             <div class="col-12">
                 <div class="card">
                     <div class="card-header bg-info text-white">
@@ -448,25 +384,4 @@
         </div>
     </div>
 </body>
-    <script>
-        // Download operator history as CSV
-        function downloadHistory() {
-            let csv = 'Date,Batch,Phase\n';
-            document.querySelectorAll('#operator-history tr').forEach(row => {
-                let cols = Array.from(row.children).map(td => td.innerText);
-                csv += cols.join(',') + '\n';
-            });
-            let blob = new Blob([csv], { type: 'text/csv' });
-            let link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = 'operator_history.csv';
-            link.click();
-        }
-
-        // Card click navigation (navigate to batch detail)
-        function goToBatchDetail(batchId) {
-            // Example: navigate to /bmr/detail/BMR20250006/
-            window.location.href = '/bmr/detail/' + batchId + '/';
-        }
-    </script>
 </html>

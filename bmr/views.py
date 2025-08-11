@@ -191,8 +191,9 @@ class BMRViewSet(viewsets.ModelViewSet):
         bmr.regulatory_comments = request.data.get('comments', '')
         bmr.save()
         
-        # Create initial workflow phases
-        self._create_workflow_phases(bmr)
+        # Create initial workflow phases using the proper service
+        from workflow.services import WorkflowService
+        WorkflowService.initialize_workflow_for_bmr(bmr)
         
         return Response({'message': 'BMR approved successfully'})
     
@@ -218,28 +219,6 @@ class BMRViewSet(viewsets.ModelViewSet):
         bmr.save()
         
         return Response({'message': 'BMR rejected'})
-    
-    def _create_workflow_phases(self, bmr):
-        """Create workflow phases for approved BMR"""
-        from workflow.models import ProductionPhase, BatchPhaseExecution
-        
-        product_type = bmr.product.product_type
-        phases = ProductionPhase.objects.filter(
-            product_type=product_type
-        ).order_by('phase_order')
-        
-        for phase in phases:
-            # Skip coating phase for non-coated tablets
-            if (phase.phase_name == 'coating' and 
-                product_type in ['tablet_normal', 'tablet_2'] and 
-                not bmr.product.is_coated):
-                continue
-            
-            BatchPhaseExecution.objects.create(
-                bmr=bmr,
-                phase=phase,
-                status='pending' if phase.phase_order == 1 else 'pending'
-            )
 
 class ProductViewSet(viewsets.ReadOnlyModelViewSet):
     """ViewSet for product information (for BMR creation)"""

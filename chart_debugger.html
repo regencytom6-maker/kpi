@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dashboard Chart Debugger</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 20px;
+        }
+        h1 {
+            color: #1a365d;
+        }
+        .instructions {
+            background-color: #f8f9fa;
+            border-left: 4px solid #1a365d;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .step {
+            margin-bottom: 10px;
+            padding: 10px;
+            background-color: #e9ecef;
+            border-radius: 5px;
+        }
+        .step-number {
+            font-weight: bold;
+            color: #1a365d;
+        }
+        code {
+            background-color: #f8f9fa;
+            padding: 2px 4px;
+            border-radius: 4px;
+            font-family: Consolas, Monaco, 'Courier New', monospace;
+        }
+        .button {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #1a365d;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            margin-right: 10px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>Dashboard Chart Debugger</h1>
+    
+    <div class="instructions">
+        <p>This tool will help diagnose issues with chart rendering in the admin dashboard.</p>
+    </div>
+    
+    <div class="step">
+        <span class="step-number">Step 1:</span> Open the admin dashboard in a new tab:
+        <a href="http://127.0.0.1:8000/dashboards/admin/" target="_blank" class="button">Open Admin Dashboard</a>
+    </div>
+    
+    <div class="step">
+        <span class="step-number">Step 2:</span> Once the dashboard is open, run the chart debugging script by clicking this button:
+        <button id="runDebugger" class="button">Run Chart Debugger</button>
+    </div>
+    
+    <div class="step">
+        <span class="step-number">Step 3:</span> Check the browser console (press F12 and go to Console tab) for detailed information about the charts.
+    </div>
+    
+    <div class="step">
+        <span class="step-number">Step 4:</span> You can also create temporary emergency charts with placeholder data:
+        <button id="createEmergencyCharts" class="button">Create Emergency Charts</button>
+    </div>
+    
+    <script>
+        document.getElementById('runDebugger').addEventListener('click', function() {
+            // Get a reference to the admin dashboard window
+            const dashboardWindow = window.open('http://127.0.0.1:8000/dashboards/admin/', '_blank');
+            
+            // Wait for the dashboard to load, then inject and run the debugging script
+            setTimeout(function() {
+                fetch('fix_dashboard_charts.js')
+                    .then(response => response.text())
+                    .then(script => {
+                        dashboardWindow.eval(script);
+                    })
+                    .catch(error => {
+                        console.error('Error fetching or running debug script:', error);
+                        alert('Error: ' + error.message);
+                    });
+            }, 3000); // Give the dashboard 3 seconds to load
+        });
+        
+        document.getElementById('createEmergencyCharts').addEventListener('click', function() {
+            const dashboardWindow = window.open('http://127.0.0.1:8000/dashboards/admin/', '_blank');
+            
+            setTimeout(function() {
+                const emergencyChartScript = `
+                    console.log("Creating emergency charts...");
+                    
+                    const chartContainers = document.querySelectorAll('.chart-container');
+                    chartContainers.forEach((container, index) => {
+                        // Clear any existing content
+                        container.innerHTML = '';
+                        
+                        // Create a new canvas
+                        const canvas = document.createElement('canvas');
+                        canvas.id = 'emergencyChart' + index;
+                        container.appendChild(canvas);
+                        
+                        // Create a simple chart
+                        const ctx = canvas.getContext('2d');
+                        const chartTypes = ['doughnut', 'bar', 'line', 'pie'];
+                        
+                        new Chart(ctx, {
+                            type: chartTypes[index % chartTypes.length],
+                            data: {
+                                labels: ['Red', 'Blue', 'Yellow', 'Green', 'Purple'],
+                                datasets: [{
+                                    label: 'Emergency Data',
+                                    data: [12, 19, 3, 5, 2],
+                                    backgroundColor: [
+                                        'rgba(255, 99, 132, 0.2)',
+                                        'rgba(54, 162, 235, 0.2)',
+                                        'rgba(255, 206, 86, 0.2)',
+                                        'rgba(75, 192, 192, 0.2)',
+                                        'rgba(153, 102, 255, 0.2)'
+                                    ],
+                                    borderColor: [
+                                        'rgba(255, 99, 132, 1)',
+                                        'rgba(54, 162, 235, 1)',
+                                        'rgba(255, 206, 86, 1)',
+                                        'rgba(75, 192, 192, 1)',
+                                        'rgba(153, 102, 255, 1)'
+                                    ],
+                                    borderWidth: 1
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: {
+                                    title: {
+                                        display: true,
+                                        text: 'Emergency Chart ' + (index + 1)
+                                    }
+                                }
+                            }
+                        });
+                    });
+                    
+                    alert('Emergency charts have been created!');
+                `;
+                
+                dashboardWindow.eval(emergencyChartScript);
+            }, 3000);
+        });
+    </script>
+</body>
+</html>

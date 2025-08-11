@@ -27,8 +27,7 @@ def user_login(request):
 def user_logout(request):
     """User logout view"""
     logout(request)
-    messages.info(request, 'You have been logged out successfully.')
-    return redirect('home')
+    return redirect('accounts:login')
 
 @login_required
 def user_profile(request):

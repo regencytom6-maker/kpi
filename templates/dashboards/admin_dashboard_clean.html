@@ -752,8 +752,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 </a>
             </li>
             <li>
+                <a href="{% url 'reports:timeline_list' %}">
+                    <i class="fas fa-project-diagram"></i> Enhanced Timeline
+                </a>
+            </li>
+            <li>
                 <a href="{% url 'dashboards:admin_timeline' %}">
-                    <i class="fas fa-clock"></i> Timeline
+                    <i class="fas fa-clock"></i> Legacy Timeline
                 </a>
             </li>
             <li>
@@ -773,6 +778,35 @@ document.addEventListener('DOMContentLoaded', function() {
             <li>
                 <a href="#">
                     <i class="fas fa-tasks"></i> Active Phases
+                </a>
+            </li>
+        </ul>
+        
+        <div class="sidebar-section">Reports</div>
+        <ul class="sidebar-menu">
+            <li>
+                <a href="{% url 'reports:timeline_list' %}">
+                    <i class="fas fa-project-diagram"></i> Visual Timeline
+                </a>
+            </li>
+            <li>
+                <a href="{% url 'reports:comments_report' %}">
+                    <i class="fas fa-comments"></i> Comments Report
+                </a>
+            </li>
+            <li>
+                <a href="{% url 'reports:export_comments_csv' %}">
+                    <i class="fas fa-file-csv"></i> Export CSV
+                </a>
+            </li>
+            <li>
+                <a href="{% url 'reports:export_comments_word' %}">
+                    <i class="fas fa-file-word"></i> Export Word
+                </a>
+            </li>
+            <li>
+                <a href="{% url 'reports:export_comments_excel' %}">
+                    <i class="fas fa-file-excel"></i> Export Excel
                 </a>
             </li>
         </ul>
@@ -1001,117 +1035,23 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
         </div>
         
-        <!-- BMR Timeline Table -->
+        <!-- Enhanced Timeline Access -->
         <div class="timeline-card mb-4">
-            <div class="table-responsive">
-                <table class="timeline-table" id="timelineTable">
-                    <thead>
-                        <tr>
-                            <th style="width: 40px;"></th>
-                            <th>Batch Number</th>
-                            <th>Product Name</th>
-                            <th>Type</th>
-                            <th>Created</th>
-                            <th>Current Phase</th>
-                            <th>Cycle Time</th>
-                            <th>Status</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for item in timeline_data %}
-                        <tr data-product-type="{{ item.bmr.product.product_type|lower }}" data-status="{% if item.is_completed %}completed{% else %}in-progress{% endif %}">
-                            <td>
-                                <a href="#" class="expand-row" data-bs-toggle="collapse" data-bs-target="#phases-{{ item.bmr.pk }}">
-                                    <i class="fas fa-plus-circle"></i>
-                                </a>
-                            </td>
-                            <td>
-                                <strong>{{ item.bmr.batch_number }}</strong>
-                            </td>
-                            <td class="text-truncate">{{ item.bmr.product.product_name }}</td>
-                            <td>{{ item.bmr.product.product_type|title }}</td>
-                            <td>{{ item.bmr.created_date|date:"M d, Y" }}</td>
-                            <td>
-                                {% if item.current_phase %}
-                                    {{ item.current_phase.phase.phase_name|title }}
-                                    <span class="badge {% if item.current_phase.status %}bg-primary{% else %}bg-warning{% endif %} status-badge">
-                                        {{ item.current_phase.status|yesno:'Completed,In Progress' }}
-                                    </span>
-                                {% else %}
-                                    N/A
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if item.total_time_days %}
-                                    <span class="badge bg-success status-badge">{{ item.total_time_days }} Days</span>
-                                {% else %}
-                                    <span class="badge bg-warning status-badge">In Progress</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if item.is_completed %}
-                                    <span class="badge bg-success">Completed</span>
-                                {% else %}
-                                    <span class="badge bg-warning">In Progress</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                <a href="{% url 'bmr:detail' item.bmr.pk %}" class="btn btn-sm btn-outline-primary">
-                                    <i class="fas fa-eye"></i>
-                                </a>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td colspan="9" class="p-0">
-                                <div id="phases-{{ item.bmr.pk }}" class="collapse">
-                                    <div class="phase-details">
-                                        <h6 class="mb-3">Phase Progress</h6>
-                                        <div class="table-responsive">
-                                            <table class="table table-sm table-borderless">
-                                                <thead>
-                                                    <tr>
-                                                        <th>Phase</th>
-                                                        <th>Started</th>
-                                                        <th>Completed</th>
-                                                        <th>Duration</th>
-                                                        <th>Status</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {% for phase in item.phase_timeline %}
-                                                    <tr>
-                                                        <td>{{ phase.phase_name }}</td>
-                                                        <td>{{ phase.started_date|date:"M d, Y H:i"|default:"N/A" }}</td>
-                                                        <td>{{ phase.completed_date|date:"M d, Y H:i"|default:"N/A" }}</td>
-                                                        <td>
-                                                            {% if phase.duration_hours %}
-                                                                {{ phase.duration_hours }}h
-                                                            {% else %}
-                                                                N/A
-                                                            {% endif %}
-                                                        </td>
-                                                        <td>
-                                                            <span class="badge bg-{{ phase.status|yesno:'success,warning,secondary' }}">
-                                                                {{ phase.status }}
-                                                            </span>
-                                                        </td>
-                                                    </tr>
-                                                    {% endfor %}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </div>
-                                </div>
-                            </td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="9" class="text-center">No BMRs found</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+            <div class="card-body text-center py-5">
+                <i class="fas fa-project-diagram fa-3x text-primary mb-3"></i>
+                <h5 class="card-title">Visual Timeline Overview</h5>
+                <p class="card-text text-muted">
+                    View all BMR progress with an enhanced visual timeline showing phase completion status,
+                    progress percentages, and workflow stages.
+                </p>
+                <div class="d-grid gap-2 d-md-flex justify-content-md-center">
+                    <a href="{% url 'reports:timeline_list' %}" class="btn btn-primary btn-lg">
+                        <i class="fas fa-project-diagram me-2"></i>View Enhanced Timeline
+                    </a>
+                    <a href="{% url 'dashboards:admin_timeline' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-table me-2"></i>Legacy Timeline Table
+                    </a>
+                </div>
             </div>
         </div>
         

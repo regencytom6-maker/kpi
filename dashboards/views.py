@@ -1328,10 +1328,15 @@ def format_phase_name(name):
 
 @login_required
 def finished_goods_dashboard(request):
-    """Finished Goods Store Dashboard"""
+    """Finished Goods Store Dashboard with Inventory Management"""
     if request.user.role != 'finished_goods_store':
         messages.error(request, 'Access denied. Finished Goods Store role required.')
         return redirect('dashboards:dashboard_home')
+    
+    # Import FGS models
+    from fgs_management.models import FGSInventory, ProductRelease, FGSAlert
+    from django.utils import timezone
+    from datetime import timedelta
     
     # Get all BMRs
     all_bmrs = BMR.objects.select_related('product', 'created_by').all()
@@ -1348,6 +1353,47 @@ def finished_goods_dashboard(request):
     all_fgs_phases = BatchPhaseExecution.objects.filter(
         phase__phase_name='finished_goods_store'
     ).select_related('bmr', 'phase', 'bmr__product')
+    
+    # FGS Inventory Statistics
+    total_inventory_items = FGSInventory.objects.count()
+    available_for_sale = FGSInventory.objects.filter(status='available').count()
+    
+    # Recent releases (last 7 days)
+    recent_releases_count = ProductRelease.objects.filter(
+        release_date__gte=timezone.now() - timedelta(days=7)
+    ).count()
+    
+    # Active alerts
+    active_alerts_count = FGSAlert.objects.filter(is_resolved=False).count()
+    
+    # Recent inventory items
+    recent_inventory = FGSInventory.objects.filter(
+        created_at__gte=timezone.now() - timedelta(days=30)
+    ).select_related('product', 'bmr').order_by('-created_at')[:10]
+    
+    # Current inventory available for release
+    available_inventory = FGSInventory.objects.filter(
+        status__in=['stored', 'available'],
+        quantity_available__gt=0
+    ).select_related('product', 'bmr').order_by('-created_at')
+    
+    # Completed FGS phases without inventory entries
+    completed_fgs_phases = BatchPhaseExecution.objects.filter(
+        phase__phase_name='finished_goods_store',
+        status='completed'
+    ).exclude(
+        bmr__in=FGSInventory.objects.values_list('bmr', flat=True)
+    ).select_related('bmr__product').order_by('-completed_date')[:10]
+    
+    # Recent releases
+    recent_releases = ProductRelease.objects.filter(
+        release_date__gte=timezone.now() - timedelta(days=14)
+    ).select_related('inventory__product', 'inventory__bmr').order_by('-release_date')[:10]
+    
+    # Active alerts
+    active_alerts = FGSAlert.objects.filter(
+        is_resolved=False
+    ).select_related('inventory').order_by('-priority', '-created_at')[:10]
     
     # Filtering support for dashboard cards
     filter_param = request.GET.get('filter')
@@ -1397,7 +1443,7 @@ def finished_goods_dashboard(request):
         else:
             product_types[product_type] = 1
 
-    # Statistics
+    # Statistics - Updated with real FGS data
     stats = {
         'pending_phases': len([p for p in my_phases if p.status == 'pending']),
         'in_progress_phases': len([p for p in my_phases if p.status == 'in_progress']),
@@ -1409,6 +1455,12 @@ def finished_goods_dashboard(request):
         'total_batches': all_fgs_phases.values('bmr').distinct().count(),
         'daily_history': daily_completions,
         'product_types': product_types,
+        
+        # FGS-specific statistics
+        'total_inventory_items': total_inventory_items,
+        'available_for_sale': available_for_sale,
+        'recent_releases': recent_releases.count(),
+        'active_alerts': active_alerts.count(),
     }
 
     # Determine the primary phase name for this role
@@ -1481,16 +1533,28 @@ def finished_goods_dashboard(request):
         'efficiency_data': efficiency_data,
         'detail_title': detail_title,
         'detail_view': request.GET.get('detail'),
+        
+        # New FGS inventory data
+        'recent_inventory': recent_inventory,
+        'recent_releases': recent_releases,
+        'active_alerts': active_alerts,
+        'available_inventory': available_inventory,
+        'completed_fgs_phases': completed_fgs_phases,
     }
 
     return render(request, 'dashboards/finished_goods_dashboard.html', context)
 
 @login_required
 def admin_fgs_monitor(request):
-    """Admin FGS Monitor - Track finished goods storage"""
+    """Admin FGS Monitor - Track finished goods storage with inventory management"""
     if not request.user.is_staff:
         messages.error(request, 'Access denied. Admin privileges required.')
         return redirect('dashboards:dashboard_home')
+    
+    # Import FGS models
+    from fgs_management.models import FGSInventory, ProductRelease, FGSAlert
+    from django.utils import timezone
+    from datetime import timedelta
     
     # Get finished goods storage phases
     fgs_phases = BatchPhaseExecution.objects.filter(
@@ -1502,16 +1566,49 @@ def admin_fgs_monitor(request):
     fgs_in_progress = fgs_phases.filter(status='in_progress') 
     fgs_completed = fgs_phases.filter(status='completed')
     
+    # FGS Inventory Statistics
+    total_inventory_items = FGSInventory.objects.count()
+    available_for_sale = FGSInventory.objects.filter(status='available').count()
+    
+    # Recent releases (last 7 days)
+    recent_releases_count = ProductRelease.objects.filter(
+        release_date__gte=timezone.now() - timedelta(days=7)
+    ).count()
+    
+    # Active alerts
+    active_alerts_count = FGSAlert.objects.filter(is_resolved=False).count()
+    
     # Statistics
     fgs_stats = {
         'total_in_store': fgs_completed.count(),
         'pending_storage': fgs_pending.count(),
         'being_stored': fgs_in_progress.count(),
         'storage_capacity_used': min(100, (fgs_completed.count() / max(1000, 1)) * 100),  # Assuming 1000 batch capacity
+        
+        # New inventory statistics
+        'total_inventory_items': total_inventory_items,
+        'available_for_sale': available_for_sale,
+        'recent_releases': recent_releases_count,
+        'active_alerts': active_alerts_count,
     }
     
     # Recent storage activity
     recent_stored = fgs_completed[:10]
+    
+    # Recent inventory items
+    recent_inventory = FGSInventory.objects.filter(
+        created_at__gte=timezone.now() - timedelta(days=30)
+    ).select_related('product', 'bmr').order_by('-created_at')[:10]
+    
+    # Recent releases
+    recent_releases = ProductRelease.objects.filter(
+        release_date__gte=timezone.now() - timedelta(days=14)
+    ).select_related('inventory__product', 'inventory__bmr').order_by('-release_date')[:10]
+    
+    # Active alerts
+    active_alerts = FGSAlert.objects.filter(
+        is_resolved=False
+    ).select_related('inventory').order_by('-priority', '-created_at')[:10]
     
     # Products in FGS by type
     products_in_fgs = fgs_completed.values(
@@ -1596,6 +1693,11 @@ def admin_fgs_monitor(request):
         'phase_completion': phase_completion,
         'weekly_production': weekly_completions,
         'qc_stats': qc_stats,
+        
+        # New FGS inventory data
+        'recent_inventory': recent_inventory,
+        'recent_releases': recent_releases,
+        'active_alerts': active_alerts,
     }
     
     return render(request, 'dashboards/admin_fgs_monitor.html', context)

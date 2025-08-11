@@ -1,0 +1,6 @@
+@echo off
+echo Stopping Django server...
+taskkill /F /IM python.exe /FI "WINDOWTITLE eq Django*" > nul 2>&1
+echo Starting Django server...
+start "Django Server" /B pharma_env\Scripts\python.exe manage.py runserver
+echo Server restarted!

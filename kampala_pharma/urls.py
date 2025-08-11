@@ -24,6 +24,8 @@ urlpatterns = [
     path('accounts/', include('accounts.urls')),
     path('bmr/', include('bmr.urls', namespace='bmr')),
     path('dashboard/', include('dashboards.urls', namespace='dashboards')),
+    path('reports/', include('reports.urls', namespace='reports')),
+    path('fgs/', include('fgs_management.urls', namespace='fgs_management')),
     # API URLs will be added later
     # path('api/', include('bmr.urls')),
     # path('api/', include('workflow.urls')),

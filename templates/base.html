@@ -37,24 +37,31 @@
 <body>
     <!-- Navigation -->
     <nav class="navbar navbar-expand-lg navbar-dark" style="background-color: #0056b3;">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="{% url 'home' %}">
-                {% load static %}
-                <img src="{% static 'Main Logo.png' %}" alt="KPI Logo" height="30" class="me-2" onerror="this.style.display='none'">
-                <i class="fas fa-pills"></i> Kampala Pharmaceutical Industries
-            </a>
+        <div class="container-fluid position-relative">
+            <div class="w-100 d-flex justify-content-center">
+                <a class="navbar-brand mx-auto" href="{% url 'home' %}">
+                    {% load static %}
+                    <img src="{% static 'Main Logo.png' %}" alt="KPI Logo" height="30" class="me-2" onerror="this.style.display='none'">
+                    Kampala Pharmaceutical Industries(KPI)
+                </a>
+            </div>
             
             {% if user.is_authenticated %}
             <div class="navbar-nav ms-auto">
-                <div class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle text-white" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown">
+                <div class="nav-item dropdown" style="position: relative;">
+                    <a class="nav-link dropdown-toggle text-white" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                         <i class="fas fa-user me-1"></i>
                         {{ user.get_full_name|default:user.username }}
                         <span class="badge bg-secondary ms-1">{{ user.get_role_display }}</span>
                     </a>
-                    <ul class="dropdown-menu">
+                    <ul class="dropdown-menu dropdown-menu-end mt-2" style="min-width: 220px; right: 0; left: auto;">
                         <li><a class="dropdown-item" href="{% url 'home' %}"><i class="fas fa-tachometer-alt me-2"></i>Dashboard</a></li>
                         <li><a class="dropdown-item" href="{% url 'accounts:profile' %}"><i class="fas fa-user me-2"></i>Profile</a></li>
+                        {% if user.is_staff or user.is_superuser or user.role == 'admin' %}
+                        <li><a class="dropdown-item" href="{% url 'reports:comments_report' %}"><i class="fas fa-comments me-2"></i>All Comments Report (Admin)</a></li>
+                        {% else %}
+                        <li><a class="dropdown-item" href="{% url 'reports:comments_report' %}"><i class="fas fa-comments me-2"></i>My Comments Report</a></li>
+                        {% endif %}
                         {% if user.is_staff %}
                         <li><a class="dropdown-item" href="{% url 'admin:index' %}"><i class="fas fa-cog me-2"></i>Admin Panel</a></li>
                         {% endif %}
@@ -64,11 +71,13 @@
                 </div>
             </div>
             {% else %}
+            {% if request.resolver_match.url_name != 'login' %}
             <div class="navbar-nav ms-auto">
                 <a class="nav-link text-white" href="{% url 'accounts:login' %}">
                     <i class="fas fa-sign-in-alt me-1"></i>Login
                 </a>
             </div>
+            {% endif %}
             {% endif %}
         </div>
     </nav>
