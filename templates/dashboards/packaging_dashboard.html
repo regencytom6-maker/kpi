@@ -118,6 +118,8 @@
                                         <th>Batch #</th>
                                         <th>Product</th>
                                         <th>Phase</th>
+                                        <th>Batch Size</th>
+                                        <th>Packaging Units Needed</th>
                                         <th>Status</th>
                                         <th>Started</th>
                                         <th>Priority</th>
@@ -133,6 +135,21 @@
                                         <td>{{ phase.bmr.product.product_name }}</td>
                                         <td>
                                             <span class="badge bg-primary">{{ phase.phase.phase_name|title }}</span>
+                                        </td>
+                                        <td>
+                                            <strong>{{ phase.bmr.batch_size|floatformat:0 }} {{ phase.bmr.batch_size_unit }}</strong>
+                                        </td>
+                                        <td>
+                                            {% if phase.bmr.product.packaging_size_in_units %}
+                                                <span class="badge bg-info">
+                                                    {% widthratio phase.bmr.batch_size phase.bmr.product.packaging_size_in_units 1 %} packages
+                                                </span>
+                                                <br><small class="text-muted">
+                                                    {{ phase.bmr.product.packaging_size_in_units|floatformat:0 }} units each
+                                                </small>
+                                            {% else %}
+                                                <span class="text-muted">Not set</span>
+                                            {% endif %}
                                         </td>
                                         <td>
                                             {% if phase.status == 'pending' %}

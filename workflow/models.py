@@ -2,6 +2,30 @@ from django.db import models
 from django.conf import settings
 from bmr.models import BMR
 
+class Machine(models.Model):
+    """Machine model for production phases"""
+    
+    MACHINE_TYPE_CHOICES = [
+        ('granulation', 'Granulation'),
+        ('blending', 'Blending'),
+        ('compression', 'Compression'),
+        ('coating', 'Coating'),
+        ('blister_packing', 'Blister Packing'),
+        ('filling', 'Filling'),  # For capsules
+    ]
+    
+    name = models.CharField(max_length=100)
+    machine_type = models.CharField(max_length=20, choices=MACHINE_TYPE_CHOICES)
+    is_active = models.BooleanField(default=True, help_text="Active machines are available for selection")
+    created_date = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['machine_type', 'name']
+        unique_together = ['name', 'machine_type']
+    
+    def __str__(self):
+        return f"{self.name} ({self.get_machine_type_display()})"
+
 class ProductionPhase(models.Model):
     """Defines the production phases for different product types"""
     
@@ -108,6 +132,21 @@ class BatchPhaseExecution(models.Model):
     operator_comments = models.TextField(blank=True)
     qa_comments = models.TextField(blank=True)
     
+    # Machine tracking
+    machine_used = models.ForeignKey('Machine', on_delete=models.SET_NULL, null=True, blank=True)
+    
+    # Breakdown tracking
+    breakdown_occurred = models.BooleanField(default=False)
+    breakdown_start_time = models.DateTimeField(null=True, blank=True)
+    breakdown_end_time = models.DateTimeField(null=True, blank=True)
+    breakdown_reason = models.TextField(blank=True)
+    
+    # Changeover tracking
+    changeover_occurred = models.BooleanField(default=False)
+    changeover_start_time = models.DateTimeField(null=True, blank=True)
+    changeover_end_time = models.DateTimeField(null=True, blank=True)
+    changeover_reason = models.TextField(blank=True)
+    
     # Quality control
     qc_approved = models.BooleanField(null=True, blank=True)
     qc_approved_by = models.ForeignKey(
@@ -126,6 +165,38 @@ class BatchPhaseExecution(models.Model):
     
     def __str__(self):
         return f"{self.bmr.batch_number} - {self.phase.get_phase_name_display()} ({self.status})"
+    
+    def requires_machine_selection(self):
+        """Check if this phase requires machine selection"""
+        machine_required_phases = [
+            'granulation', 'blending', 'compression', 
+            'coating', 'blister_packing', 'filling'
+        ]
+        return self.phase.phase_name in machine_required_phases
+    
+    def get_breakdown_duration(self):
+        """Calculate breakdown duration in minutes"""
+        if self.breakdown_occurred and self.breakdown_start_time and self.breakdown_end_time:
+            delta = self.breakdown_end_time - self.breakdown_start_time
+            return delta.total_seconds() / 60
+        return 0
+    
+    def get_changeover_duration(self):
+        """Calculate changeover duration in minutes"""
+        if self.changeover_occurred and self.changeover_start_time and self.changeover_end_time:
+            delta = self.changeover_end_time - self.changeover_start_time
+            return delta.total_seconds() / 60
+        return 0
+    
+    @property
+    def breakdown_duration_minutes(self):
+        """Property for template use - breakdown duration in minutes"""
+        return round(self.get_breakdown_duration(), 1) if self.get_breakdown_duration() > 0 else None
+    
+    @property
+    def changeover_duration_minutes(self):
+        """Property for template use - changeover duration in minutes"""
+        return round(self.get_changeover_duration(), 1) if self.get_changeover_duration() > 0 else None
     
     def get_next_phase(self):
         """Get the next phase in the workflow"""

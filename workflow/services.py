@@ -10,7 +10,8 @@ class WorkflowService:
         'ointment': [
             'bmr_creation',
             'regulatory_approval', 
-            'material_dispensing',
+            'raw_material_release',      # NEW: Store manager releases materials
+            'material_dispensing',       # Dispensing manager dispenses materials
             'mixing',
             'post_mixing_qc',  # QC test after mixing - rolls back to mixing if failed
             'tube_filling',
@@ -22,7 +23,8 @@ class WorkflowService:
         'tablet': [
             'bmr_creation',
             'regulatory_approval',
-            'material_dispensing', 
+            'raw_material_release',      # NEW: Store manager releases materials
+            'material_dispensing',       # Dispensing manager dispenses materials
             'granulation',
             'blending',
             'compression',
@@ -38,7 +40,8 @@ class WorkflowService:
         'capsule': [
             'bmr_creation',
             'regulatory_approval',
-            'material_dispensing',
+            'raw_material_release',      # NEW: Store manager releases materials
+            'material_dispensing',       # Dispensing manager dispenses materials
             'drying',
             'blending',
             'post_blending_qc',  # QC test after blending - rolls back to blending if failed
@@ -54,77 +57,34 @@ class WorkflowService:
     
     @classmethod
     def initialize_workflow_for_bmr(cls, bmr):
-        """Initialize all workflow phases for a new BMR with GUARANTEED correct order"""
+        """Initialize all workflow phases for a new BMR using the correct system workflow"""
         product_type = bmr.product.product_type
         
-        # Define the DEFINITIVE workflow for each product type
-        # This overrides any database inconsistencies
+        # Use the PRODUCT_WORKFLOWS dictionary which includes raw_material_release
+        base_workflow = cls.PRODUCT_WORKFLOWS.get(product_type, [])
+        if not base_workflow:
+            raise ValueError(f"No workflow defined for product type: {product_type}")
+        
+        # Make a copy to avoid modifying the original
+        workflow_phases = base_workflow.copy()
+        
+        # Handle tablet-specific logic for coating and packing types
         if product_type == 'tablet':
-            # ENFORCED tablet workflow with correct order
-            workflow_phases = [
-                'bmr_creation',
-                'regulatory_approval',
-                'material_dispensing',
-                'granulation',
-                'blending',
-                'compression',
-                'post_compression_qc',
-                'sorting',
-            ]
+            # Handle coating - skip if not coated
+            if not getattr(bmr.product, 'is_coated', False):
+                if 'coating' in workflow_phases:
+                    workflow_phases.remove('coating')
             
-            # Add coating if product is coated
-            if bmr.product.is_coated:
-                workflow_phases.append('coating')
-            
-            # Always add packaging material release
-            workflow_phases.append('packaging_material_release')
-            
-            # CRITICAL: Determine packing type for tablets
+            # Handle packing type for tablets
             if getattr(bmr.product, 'tablet_type', None) == 'tablet_2':
-                # TABLET_2 ALWAYS gets bulk_packing first, then secondary_packaging
-                workflow_phases.extend(['bulk_packing', 'secondary_packaging'])
-            else:
-                # Normal tablets get blister_packing, then secondary_packaging
-                workflow_phases.extend(['blister_packing', 'secondary_packaging'])
-            
-            # Finish with final QA and finished goods store
-            workflow_phases.extend(['final_qa', 'finished_goods_store'])
-            
-        elif product_type == 'ointment':
-            workflow_phases = [
-                'bmr_creation',
-                'regulatory_approval', 
-                'material_dispensing',
-                'mixing',
-                'post_mixing_qc',
-                'tube_filling',
-                'packaging_material_release',
-                'secondary_packaging',
-                'final_qa',
-                'finished_goods_store'
-            ]
-            
-        elif product_type == 'capsule':
-            workflow_phases = [
-                'bmr_creation',
-                'regulatory_approval',
-                'material_dispensing',
-                'drying',
-                'blending',
-                'post_blending_qc',
-                'filling',
-                'sorting',
-                'packaging_material_release',
-                'blister_packing',
-                'secondary_packaging', 
-                'final_qa',
-                'finished_goods_store'
-            ]
-        else:
-            # Fallback to database workflow if product type not recognized
-            workflow_phases = cls.PRODUCT_WORKFLOWS.get(product_type, [])
-            if not workflow_phases:
-                raise ValueError(f"No workflow defined for product type: {product_type}")
+                # TABLET_2 uses bulk_packing instead of blister_packing
+                if 'blister_packing' in workflow_phases:
+                    index = workflow_phases.index('blister_packing')
+                    workflow_phases[index] = 'bulk_packing'
+        
+        # Remove any duplicate phases that might exist
+        seen = set()
+        workflow_phases = [x for x in workflow_phases if not (x in seen or seen.add(x))]
 
         # Remove any accidental duplicates
         seen = set()
@@ -153,8 +113,12 @@ class WorkflowService:
                 # Create the batch phase execution with proper initial status
                 if phase_name == 'bmr_creation':
                     initial_status = 'completed'
-                elif phase_name in ['regulatory_approval']:
+                elif phase_name == 'regulatory_approval':
                     initial_status = 'pending'
+                elif phase_name == 'raw_material_release':
+                    initial_status = 'not_ready'  # Will be activated when regulatory approval completes
+                elif phase_name == 'material_dispensing':
+                    initial_status = 'not_ready'  # Will be activated when raw material release completes
                 else:
                     initial_status = 'not_ready'
                 
@@ -382,6 +346,40 @@ class WorkflowService:
                 phase=current_phase
             )
             
+            # NEW: Handle raw material release -> material dispensing transition
+            if current_execution.phase.phase_name == 'raw_material_release':
+                print(f"Completed raw material release for BMR {bmr.batch_number}, activating material dispensing...")
+                material_dispensing_phase = BatchPhaseExecution.objects.filter(
+                    bmr=bmr,
+                    phase__phase_name='material_dispensing'
+                ).first()
+                
+                if material_dispensing_phase:
+                    material_dispensing_phase.status = 'pending'
+                    material_dispensing_phase.save()
+                    print(f"Activated material_dispensing phase for BMR {bmr.batch_number}")
+                    return True
+                else:
+                    print(f"WARNING: No material_dispensing phase found for BMR {bmr.batch_number}")
+                    return False
+            
+            # NEW: Handle regulatory approval -> raw material release transition
+            if current_execution.phase.phase_name == 'regulatory_approval':
+                print(f"Completed regulatory approval for BMR {bmr.batch_number}, activating raw material release...")
+                raw_material_release_phase = BatchPhaseExecution.objects.filter(
+                    bmr=bmr,
+                    phase__phase_name='raw_material_release'
+                ).first()
+                
+                if raw_material_release_phase:
+                    raw_material_release_phase.status = 'pending'
+                    raw_material_release_phase.save()
+                    print(f"Activated raw_material_release phase for BMR {bmr.batch_number}")
+                    return True
+                else:
+                    print(f"WARNING: No raw_material_release phase found for BMR {bmr.batch_number}")
+                    return False
+            
             # Special handling for sorting -> coating for tablets
             if current_execution.phase.phase_name == 'sorting' and bmr.product.product_type == 'tablet':
                 print(f"Completed sorting for tablet BMR {bmr.batch_number}, handling workflow...")
@@ -558,7 +556,8 @@ class WorkflowService:
         role_phase_mapping = {
             'qa': ['bmr_creation', 'final_qa'],
             'regulatory': ['regulatory_approval'],
-            'store_manager': ['material_dispensing'],  # Store Manager only handles material dispensing
+            'store_manager': ['raw_material_release'],  # Store Manager handles raw material release
+            'dispensing_operator': ['material_dispensing'],  # Dispensing Operator handles material dispensing
             'packaging_store': ['packaging_material_release'],  # Packaging store handles packaging material release
             'finished_goods_store': ['finished_goods_store'],  # Finished Goods Store only handles finished goods storage
             'qc': ['post_compression_qc', 'post_mixing_qc', 'post_blending_qc'],

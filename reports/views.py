@@ -140,13 +140,16 @@ def comments_report_view(request):
     
     for signature in signatures:
         if signature.comments:
+            # Get user role from user's groups
+            user_role = signature.signed_by.groups.first().name if signature.signed_by.groups.exists() else 'Staff'
+            
             comments_data.append({
                 'bmr_number': signature.bmr.batch_number,
                 'product': signature.bmr.product.product_name,
                 'comment_type': 'Electronic Signature',
-                'phase': f"Signature - {signature.signed_by_role}",
+                'phase': f"Signature - {signature.get_signature_type_display()}",
                 'user': signature.signed_by.get_full_name() if signature.signed_by else 'Unknown',
-                'user_role': signature.signed_by_role,
+                'user_role': user_role,
                 'date': signature.signed_date,
                 'comments': signature.comments,
                 'status': 'Signed',

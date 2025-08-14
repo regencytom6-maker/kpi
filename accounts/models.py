@@ -8,7 +8,8 @@ class CustomUser(AbstractUser):
         ('admin', 'Admin'),
         ('qa', 'Quality Assurance'),
         ('regulatory', 'Regulatory'),
-        ('store_manager', 'Store Manager'),
+        ('store_manager', 'Store Manager'),  # Now handles raw material release to dispensing
+        ('dispensing_manager', 'Dispensing Manager'),  # Renamed from store_manager
         ('packaging_store', 'Packaging Store'),
         ('finished_goods_store', 'Finished Goods Store'),
         ('qc', 'Quality Control'),

@@ -13,7 +13,7 @@
     
     .sidebar {
         width: 280px;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
         padding: 20px 0;
         color: white;
         position: fixed;
@@ -370,11 +370,13 @@
             <!-- Key Metrics Section -->
             <div class="row mb-4">
                 <div class="col-12">
-                    <h3 class="section-title">Key Metrics</h3>
-                </div>
-            </div>
-            
-            <div class="row mb-4">
+                    <div class="card">
+                        <div class="card-header bg-primary text-white">
+                            <h3 class="mb-0">
+                                <i class="fas fa-chart-bar me-2"></i>Key Metrics
+                            </h3>
+                        </div>
+                        <div class="card-body">
                 <div class="col-lg-3 col-md-6 mb-3">
                     <a href="{% url 'bmr:list' %}" class="text-decoration-none">
                         <div class="card metrics-card h-100">
@@ -416,15 +418,21 @@
                     </a>
                 </div>
             </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
             <!-- Production Analytics Section -->
             <div class="row mb-4">
                 <div class="col-12">
-                    <h3 class="section-title">Production Analytics</h3>
-                </div>
-            </div>
-            
-            <div class="row mb-4">
+                    <div class="card">
+                        <div class="card-header bg-primary text-white">
+                            <h3 class="mb-0">
+                                <i class="fas fa-chart-line me-2"></i>Production Analytics
+                            </h3>
+                        </div>
+                        <div class="card-body">
                 <!-- Production Trend Chart -->
                 <div class="col-lg-8 col-md-12 mb-3">
                     <div class="card analytics-card h-100">
@@ -629,16 +637,22 @@
                         </div>
                     </div>
                 </div>
+                        </div>
+                    </div>
+                </div>
             </div>
             
             <!-- Quick Actions Section -->
             <div class="row mb-4">
                 <div class="col-12">
-                    <h3 class="section-title">Quick Actions</h3>
-                </div>
-            </div>
-            
-            <div class="row mb-4">
+                    <div class="card">
+                        <div class="card-header bg-primary text-white">
+                            <h3 class="mb-0">
+                                <i class="fas fa-bolt me-2"></i>Quick Actions
+                            </h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
                 <div class="col-lg-4 col-md-6 mb-3">
                     <div class="card action-card h-100">
                         <div class="card-body">
@@ -682,6 +696,10 @@
                                 <a href="{% url 'dashboards:admin_fgs_monitor' %}" class="btn quick-action-btn w-100">
                                     <i class="fas fa-boxes me-2"></i>FGS Monitor
                                 </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                             </div>
                         </div>
                     </div>

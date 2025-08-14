@@ -13,7 +13,7 @@
     
     .sidebar {
         width: 280px;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
         padding: 20px 0;
         color: white;
         position: fixed;
@@ -365,88 +365,116 @@
         <!-- Summary Section -->
         <div class="row mb-4">
             <div class="col-12">
-                <h3 class="section-title">Production Overview</h3>
-            </div>
-        </div>
-        
-        <div class="row mb-4">
-            <div class="col-md-3">
-                <div class="cycle-time">
-                    <i class="fas fa-clock fa-2x mb-2"></i>
-                    <h4>{{ total_bmrs }}</h4>
-                    <p class="mb-0">BMRs Tracked</p>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="cycle-time" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
-                    <i class="fas fa-check-circle fa-2x mb-2"></i>
-                    <h4>{{ completed_count }}</h4>
-                    <p class="mb-0">Completed</p>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="cycle-time" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);">
-                    <i class="fas fa-hourglass-half fa-2x mb-2"></i>
-                    <h4>{{ in_progress_count }}</h4>
-                    <p class="mb-0">In Progress</p>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="cycle-time" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
-                    <i class="fas fa-chart-line fa-2x mb-2"></i>
-                    <h4>{% if avg_production_time %}{{ avg_production_time }}{% else %}N/A{% endif %}</h4>
-                    <p class="mb-0">Avg. Cycle Time (Days)</p>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Search and Filter -->
-        <div class="row mb-4">
-            <div class="col-md-6">
-                <div class="search-bar">
-                    <input type="text" class="search-input" id="searchTimeline" placeholder="Search by batch number, product name..." oninput="filterTable()">
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="filters">
-                    <div class="filter-item">
-                        <select class="filter-select" id="filterProductType" onchange="filterTable()">
-                            <option value="">All Product Types</option>
-                            <option value="tablet">Tablet</option>
-                            <option value="tablet2">Tablet (Bulk)</option>
-                            <option value="capsule">Capsule</option>
-                            <option value="ointment">Ointment</option>
-                        </select>
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h3 class="mb-0">
+                            <i class="fas fa-chart-line me-2"></i>Production Overview
+                        </h3>
                     </div>
-                    <div class="filter-item">
-                        <select class="filter-select" id="filterStatus" onchange="filterTable()">
-                            <option value="">All Statuses</option>
-                            <option value="completed">Completed</option>
-                            <option value="in-progress">In Progress</option>
-                        </select>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <div class="cycle-time">
+                                    <i class="fas fa-clock fa-2x mb-2"></i>
+                                    <h4>{{ total_bmrs }}</h4>
+                                    <p class="mb-0">BMRs Tracked</p>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="cycle-time" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                                    <i class="fas fa-check-circle fa-2x mb-2"></i>
+                                    <h4>{{ completed_count }}</h4>
+                                    <p class="mb-0">Completed</p>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="cycle-time" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);">
+                                    <i class="fas fa-hourglass-half fa-2x mb-2"></i>
+                                    <h4>{{ in_progress_count }}</h4>
+                                    <p class="mb-0">In Progress</p>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="cycle-time" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                                    <i class="fas fa-chart-line fa-2x mb-2"></i>
+                                    <h4>{% if avg_production_time %}{{ avg_production_time }}{% else %}N/A{% endif %}</h4>
+                                    <p class="mb-0">Avg. Cycle Time (Days)</p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
         
+        <!-- Search and Filter Section -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h3 class="mb-0">
+                            <i class="fas fa-search me-2"></i>Search & Filter
+                        </h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="search-bar">
+                                    <input type="text" class="search-input" id="searchTimeline" placeholder="Search by batch number, product name..." oninput="filterTable()">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="filters">
+                                    <div class="filter-item">
+                                        <select class="filter-select" id="filterProductType" onchange="filterTable()">
+                                            <option value="">All Product Types</option>
+                                            <option value="tablet">Tablet</option>
+                                            <option value="tablet2">Tablet (Bulk)</option>
+                                            <option value="capsule">Capsule</option>
+                                            <option value="ointment">Ointment</option>
+                                        </select>
+                                    </div>
+                                    <div class="filter-item">
+                                        <select class="filter-select" id="filterStatus" onchange="filterTable()">
+                                            <option value="">All Statuses</option>
+                                            <option value="completed">Completed</option>
+                                            <option value="in-progress">In Progress</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Timeline Table -->
-        <div class="timeline-card">
-            <div class="table-responsive">
-                <table class="timeline-table" id="timelineTable">
-                    <thead>
-                        <tr>
-                            <th style="width: 40px;"></th>
-                            <th>Batch Number</th>
-                            <th>Product Name</th>
-                            <th>Type</th>
-                            <th>Created</th>
-                            <th>Current Phase</th>
-                            <th>Cycle Time</th>
-                            <th>Status</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h3 class="mb-0">
+                            <i class="fas fa-timeline me-2"></i>BMR Production Timeline
+                        </h3>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="timeline-table" id="timelineTable">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 40px;"></th>
+                                        <th>Batch Number</th>
+                                        <th>Product Name</th>
+                                        <th>Type</th>
+                                        <th>Created</th>
+                                        <th>Current Phase</th>
+                                        <th>Cycle Time</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
                         {% for item in page_obj %}
                         <tr data-product-type="{{ item.bmr.product.product_type|lower }}" data-status="{% if item.is_completed %}completed{% else %}in-progress{% endif %}">
                             <td>
@@ -536,6 +564,10 @@
                         {% endfor %}
                     </tbody>
                 </table>
+            </div>
+        </div>
+                    </div>
+                </div>
             </div>
         </div>
         

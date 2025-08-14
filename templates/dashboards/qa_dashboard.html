@@ -3,204 +3,98 @@
 {% block title %}QA Dashboard - {{ block.super }}{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-12">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h1 class="h3">
-                <i class="fas fa-clipboard-check text-primary me-2"></i>
-                Quality Assurance Dashboard
-            </h1>
-            <div class="text-muted">
-                Welcome, {{ user.get_full_name|default:user.username }}
-            </div>
-        </div>
-    </div>
-    </div>
-</div>
-
-
-<div class="row g-3 mb-4">
-    <div class="col-md-3">
-        <div class="card dashboard-card border-primary bg-primary text-white">
-            <div class="card-body text-center">
-                <i class="fas fa-file-alt fa-2x text-white mb-2"></i>
-                <h5 class="card-title">Total BMRs</h5>
-                <h3 class="text-white">{{ total_bmrs }}</h3>
-            </div>
-        </div>
-    </div>
-    
-    <div class="col-md-3">
-        <div class="card dashboard-card border-warning bg-warning text-dark">
-            <div class="card-body text-center">
-                <i class="fas fa-edit fa-2x text-dark mb-2"></i>
-                <h5 class="card-title">Draft BMRs</h5>
-                <h3 class="text-dark">{{ draft_bmrs }}</h3>
-            </div>
-        </div>
-    </div>
-    
-    <div class="col-md-3">
-        <div class="card dashboard-card border-info bg-info text-white">
-            <div class="card-body text-center">
-                <i class="fas fa-paper-plane fa-2x text-white mb-2"></i>
-                <h5 class="card-title">Submitted BMRs</h5>
-                <h3 class="text-white">{{ submitted_bmrs }}</h3>
-            </div>
-        </div>
-    </div>
-    
-    <div class="col-md-3">
-        <div class="card dashboard-card border-success bg-success text-white">
-            <div class="card-body text-center">
-                <i class="fas fa-user-check fa-2x text-white mb-2"></i>
-                <h5 class="card-title">My BMRs</h5>
-                <h3 class="text-white">{{ my_bmrs }}</h3>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- My History Section (moved below cards) -->
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card shadow-sm">
-            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-                <span><i class="fas fa-history"></i> My History</span>
-            </div>
-            <div class="card-body">
-                <div style="max-height: 180px; overflow-y: auto;">
-                    <table class="table table-sm table-bordered mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th>Date</th>
-                                <th>Batch</th>
-                                <th>Phase</th>
-                            </tr>
-                        </thead>
-                        <tbody id="operator-history">
-                            {% for entry in operator_history %}
-                            <tr><td>{{ entry.date }}</td><td>{{ entry.batch }}</td><td>{{ entry.phase }}</td></tr>
-                            {% empty %}
-                            <tr><td colspan="3" class="text-center text-muted">No history found.</td></tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+<div class="container-fluid px-4 py-3">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1 class="h3">
+                    <i class="fas fa-clipboard-check text-primary me-2"></i>
+                    Quality Assurance Dashboard
+                </h1>
+                <div class="text-muted">
+                    Welcome, {{ user.get_full_name|default:user.username }}
                 </div>
             </div>
         </div>
     </div>
-</div>
-<div class="row">
-    <div class="col-md-8">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="card-title mb-0">
-                    <i class="fas fa-list me-2"></i>
-                    Recent BMRs
-                </h5>
-            </div>
-            <div class="card-body">
-                {% if recent_bmrs %}
-                <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead>
-                            <tr>
-                                <th>Batch Number</th>
-                                <th>Product</th>
-                                <th>Status</th>
-                                <th>Created</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for bmr in recent_bmrs %}
-                            <tr>
-                                <td><strong>{{ bmr.batch_number }}</strong></td>
-                                <td>{{ bmr.product.product_name }}</td>
-                                <td>
-                                    <span class="badge bg-{{ bmr.status|yesno:'success,warning,secondary' }}">
-                                        {{ bmr.get_status_display }}
-                                    </span>
-                                </td>
-                                <td>{{ bmr.created_date|date:"M d, Y" }}</td>
-                                <td>
-                                    <a href="{% url 'bmr:detail' bmr.pk %}" class="btn btn-sm btn-outline-primary">
-                                        <i class="fas fa-eye"></i>
-                                    </a>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                {% else %}
-                <div class="text-center text-muted py-4">
-                    <i class="fas fa-inbox fa-3x mb-3"></i>
-                    <p>No BMRs found</p>
-                </div>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-    
-    <div class="col-md-4">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="card-title mb-0">
-                    <i class="fas fa-tasks me-2"></i>
-                    Quick Actions
-                </h5>
-            </div>
-            <div class="card-body">
-                <div class="d-grid gap-2">
-                    <a href="{% url 'bmr:create' %}" class="btn btn-primary">
-                        <i class="fas fa-plus me-2"></i>
-                        Create New BMR
-                    </a>
-                    <a href="{% url 'bmr:list' %}" class="btn btn-outline-primary">
-                        <i class="fas fa-list me-2"></i>
-                        View All BMRs
-                    </a>
-                    <a href="{% url 'admin:bmr_bmr_changelist' %}" class="btn btn-outline-secondary">
-                        <i class="fas fa-cog me-2"></i>
-                        BMR Management
-                    </a>
-                </div>
-            </div>
-        </div>
 
-        <div class="card mt-3">
-            <div class="card-header">
-                <h5 class="card-title mb-0">
-                    <i class="fas fa-chart-line me-2"></i>
-                    Status Summary
-                </h5>
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card dashboard-card border-primary bg-primary text-white" style="height: 120px;">
+                <div class="card-body text-center py-2">
+                    <i class="fas fa-file-alt fa-lg text-white mb-1"></i>
+                    <h6 class="card-title mb-1">Total BMRs</h6>
+                    <h4 class="text-white mb-0">{{ total_bmrs }}</h4>
+                </div>
             </div>
-            <div class="card-body">
-                <div class="row text-center">
-                    <div class="col-6">
-                        <div class="border-end">
-                            <h4 class="text-success">{{ approved_bmrs }}</h4>
-                            <small class="text-muted">Approved</small>
-                        </div>
-                    </div>
-                    <div class="col-6">
-                        <h4 class="text-danger">{{ rejected_bmrs }}</h4>
-                        <small class="text-muted">Rejected</small>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="card dashboard-card border-warning bg-warning text-dark" style="height: 120px;">
+                <div class="card-body text-center py-2">
+                    <i class="fas fa-edit fa-lg text-dark mb-1"></i>
+                    <h6 class="card-title mb-1">Draft BMRs</h6>
+                    <h4 class="text-dark mb-0">{{ draft_bmrs }}</h4>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="card dashboard-card border-info bg-info text-white" style="height: 120px;">
+                <div class="card-body text-center py-2">
+                    <i class="fas fa-paper-plane fa-lg text-white mb-1"></i>
+                    <h6 class="card-title mb-1">Submitted BMRs</h6>
+                    <h4 class="text-white mb-0">{{ submitted_bmrs }}</h4>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="card dashboard-card border-success bg-success text-white" style="height: 120px;">
+                <div class="card-body text-center py-2">
+                    <i class="fas fa-user-check fa-lg text-white mb-1"></i>
+                    <h6 class="card-title mb-1">My BMRs</h6>
+                    <h4 class="text-white mb-0">{{ my_bmrs }}</h4>
+                </div>
+            </div>
+        </div>    <!-- My History Section (moved below cards) -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-history"></i> My History</span>
+                </div>
+                <div class="card-body">
+                    <div style="max-height: 180px; overflow-y: auto;">
+                        <table class="table table-sm table-bordered mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Batch</th>
+                                    <th>Phase</th>
+                                </tr>
+                            </thead>
+                            <tbody id="operator-history">
+                                {% for entry in operator_history %}
+                                <tr><td>{{ entry.date }}</td><td>{{ entry.batch }}</td><td>{{ entry.phase }}</td></tr>
+                                {% empty %}
+                                <tr><td colspan="3" class="text-center text-muted">No history found.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-</div>
 
-<!-- Final QA Pending Section (Ready to Start) -->
-{% if final_qa_pending %}
-<div class="row mt-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header bg-warning text-dark">
+    <!-- Final QA Pending Section (Ready to Start) -->
+    {% if final_qa_pending %}
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-warning text-dark">
                 <h5 class="card-title mb-0">
                     <i class="fas fa-clipboard-check me-2"></i>
                     Final QA Review - Ready to Start ({{ final_qa_pending.count }})
@@ -313,6 +207,135 @@
 </div>
 {% endif %}
 
+<!-- Recent BMRs and Quick Actions at Bottom -->
+<div class="row mt-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-list me-2"></i>
+                    Recent BMRs
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if recent_bmrs %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Batch Number</th>
+                                <th>Product</th>
+                                <th>Status</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for bmr in recent_bmrs %}
+                            <tr>
+                                <td><strong>{{ bmr.batch_number }}</strong></td>
+                                <td>{{ bmr.product.product_name }}</td>
+                                <td>
+                                    <span class="badge bg-{{ bmr.status|yesno:'success,warning,secondary' }}">
+                                        {{ bmr.get_status_display }}
+                                    </span>
+                                </td>
+                                <td>{{ bmr.created_date|date:"M d, Y" }}</td>
+                                <td>
+                                    <a href="{% url 'bmr:detail' bmr.pk %}" class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center text-muted py-4">
+                    <i class="fas fa-inbox fa-3x mb-3"></i>
+                    <p>No BMRs found</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-tasks me-2"></i>
+                    Quick Actions
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="{% url 'bmr:create' %}" class="btn btn-primary">
+                        <i class="fas fa-plus me-2"></i>
+                        Create New BMR
+                    </a>
+                    <a href="{% url 'bmr:list' %}" class="btn btn-outline-primary">
+                        <i class="fas fa-list me-2"></i>
+                        View All BMRs ({{ total_bmrs }})
+                    </a>
+                    <div class="mt-2 p-2 bg-light rounded">
+                        <small class="text-muted d-block">Quick Stats:</small>
+                        <div class="row text-center mt-1">
+                            <div class="col-4">
+                                <span class="badge bg-success">{{ approved_bmrs }}</span>
+                                <small class="d-block text-muted">Approved</small>
+                            </div>
+                            <div class="col-4">
+                                <span class="badge bg-danger">{{ rejected_bmrs }}</span>
+                                <small class="d-block text-muted">Rejected</small>
+                            </div>
+                            <div class="col-4">
+                                <span class="badge bg-warning text-dark">{{ draft_bmrs }}</span>
+                                <small class="d-block text-muted">Draft</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header bg-success text-white">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-chart-line me-2"></i>
+                    Detailed Status Summary
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-6">
+                        <div class="border-end">
+                            <h4 class="text-success">{{ approved_bmrs }}</h4>
+                            <small class="text-muted">Total Approved</small>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <h4 class="text-danger">{{ rejected_bmrs }}</h4>
+                        <small class="text-muted">Total Rejected</small>
+                    </div>
+                </div>
+                <hr class="my-2">
+                <div class="row text-center">
+                    <div class="col-6">
+                        <h5 class="text-info">{{ submitted_bmrs }}</h5>
+                        <small class="text-muted">Pending Review</small>
+                    </div>
+                    <div class="col-6">
+                        <h5 class="text-warning">{{ my_bmrs }}</h5>
+                        <small class="text-muted">My BMRs</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
 <!-- QA Action Modal -->
 <div class="modal fade" id="qaModal" tabindex="-1">
     <div class="modal-dialog">
@@ -321,7 +344,7 @@
                 <h5 class="modal-title" id="qaModalTitle">Final QA Review</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <form id="qaForm" method="post">
+            <form id="qaForm" method="post" action="{% url 'dashboards:qa_dashboard' %}">
                 {% csrf_token %}
                 <div class="modal-body">
                     <div id="qaModalBody">
@@ -334,6 +357,8 @@
                     </div>
                     <input type="hidden" id="qa_phase_id" name="phase_id">
                     <input type="hidden" id="qa_action" name="action">
+                    <!-- Add a fresh CSRF token for each form submission -->
+                    <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -345,7 +370,33 @@
 </div>
 
 <script>
+// Function to get CSRF token from cookie
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+// Function to refresh CSRF token in form
+function refreshCSRFToken() {
+    const csrfToken = getCookie('csrftoken') || document.querySelector('[name=csrfmiddlewaretoken]').value;
+    const csrfInputs = document.querySelectorAll('[name=csrfmiddlewaretoken]');
+    csrfInputs.forEach(input => {
+        input.value = csrfToken;
+    });
+}
+
 function startQA(phaseId, bmrNumber) {
+    refreshCSRFToken(); // Refresh CSRF token before showing modal
     document.getElementById('qaModalTitle').textContent = 'Start Final QA Review';
     document.getElementById('qaModalBody').innerHTML = `
         <p>Start Final QA Review for <strong>BMR ${bmrNumber}</strong>?</p>
@@ -364,6 +415,7 @@ function startQA(phaseId, bmrNumber) {
 }
 
 function approveQA(phaseId, bmrNumber) {
+    refreshCSRFToken(); // Refresh CSRF token before showing modal
     document.getElementById('qaModalTitle').textContent = 'Approve Final QA';
     document.getElementById('qaModalBody').innerHTML = `
         <p>Approve Final QA for <strong>BMR ${bmrNumber}</strong>?</p>
@@ -382,6 +434,7 @@ function approveQA(phaseId, bmrNumber) {
 }
 
 function rejectQA(phaseId, bmrNumber) {
+    refreshCSRFToken(); // Refresh CSRF token before showing modal
     document.getElementById('qaModalTitle').textContent = 'Reject Final QA';
     document.getElementById('qaModalBody').innerHTML = `
         <p>Reject Final QA for <strong>BMR ${bmrNumber}</strong>?</p>

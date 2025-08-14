@@ -35,8 +35,19 @@ class BMR(models.Model):
         help_text="Enter batch number in format XXXYYYY (e.g., 0012025)"
     )
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
-    batch_size = models.DecimalField(max_digits=10, decimal_places=2)
-    batch_size_unit = models.CharField(max_length=20, default='units')
+    # Batch size now comes from Product model - these fields are for actual batch size if different from standard
+    actual_batch_size = models.DecimalField(
+        max_digits=10, 
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Actual batch size (if different from standard product batch size)"
+    )
+    actual_batch_size_unit = models.CharField(
+        max_length=20, 
+        blank=True,
+        help_text="Unit for actual batch size (inherits from product if not specified)"
+    )
     
     # Dates
     created_date = models.DateTimeField(auto_now_add=True)
@@ -83,10 +94,56 @@ class BMR(models.Model):
     def __str__(self):
         return f"BMR-{self.bmr_number} | Batch: {self.batch_number} | {self.product.product_name}"
     
+    @property
+    def batch_size(self):
+        """Get batch size - actual if specified, otherwise standard from product"""
+        return self.actual_batch_size or self.product.standard_batch_size
+    
+    @property
+    def batch_size_unit(self):
+        """Get batch size unit - actual if specified, otherwise from product"""
+        return self.actual_batch_size_unit or self.product.batch_size_unit
+    
     def save(self, *args, **kwargs):
+        # Check if this is a status change to approved
+        is_new = self.pk is None
+        old_status = None
+        
+        if not is_new:
+            try:
+                old_instance = BMR.objects.get(pk=self.pk)
+                old_status = old_instance.status
+            except BMR.DoesNotExist:
+                pass
+        
         if not self.bmr_number:
             self.bmr_number = self.generate_unique_bmr_number()
+        
+        # Save the BMR first
         super().save(*args, **kwargs)
+        
+        # Initialize workflow when BMR is created or when status changes to approved
+        if is_new or (old_status != 'approved' and self.status == 'approved'):
+            from workflow.services import WorkflowService
+            try:
+                WorkflowService.initialize_workflow_for_bmr(self)
+                print(f"Workflow initialized for BMR {self.bmr_number}")
+                
+                # If status is approved, activate the raw material release phase
+                if self.status == 'approved':
+                    from workflow.models import BatchPhaseExecution
+                    raw_material_phase = BatchPhaseExecution.objects.filter(
+                        bmr=self,
+                        phase__phase_name='raw_material_release'
+                    ).first()
+                    
+                    if raw_material_phase and raw_material_phase.status == 'not_ready':
+                        raw_material_phase.status = 'pending'
+                        raw_material_phase.save()
+                        print(f"Activated raw material release phase for BMR {self.bmr_number}")
+                        
+            except Exception as e:
+                print(f"Error initializing workflow for BMR {self.bmr_number}: {e}")
 
     def generate_unique_bmr_number(self):
         """Generate a truly unique BMR number for the year, even if BMRs are deleted or created concurrently."""
@@ -137,6 +194,101 @@ class BMRMaterial(models.Model):
     
     def __str__(self):
         return f"{self.bmr.bmr_number} - {self.material_name}"
+
+class RawMaterialRelease(models.Model):
+    """Track raw material releases from Store to Dispensing Store"""
+    
+    STATUS_CHOICES = [
+        ('pending', 'Pending Release'),
+        ('released', 'Released to Dispensing'),
+        ('received', 'Received by Dispensing'),
+        ('cancelled', 'Cancelled'),
+    ]
+    
+    bmr = models.ForeignKey(BMR, on_delete=models.CASCADE, related_name='material_releases')
+    release_number = models.CharField(max_length=20, unique=True)
+    
+    # Release details
+    release_date = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    
+    # Personnel
+    released_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='released_materials'
+    )
+    received_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='received_materials'
+    )
+    
+    # Dates
+    release_started_date = models.DateTimeField(null=True, blank=True)
+    release_completed_date = models.DateTimeField(null=True, blank=True)
+    received_date = models.DateTimeField(null=True, blank=True)
+    
+    # Comments
+    release_comments = models.TextField(blank=True)
+    receiving_comments = models.TextField(blank=True)
+    
+    def __str__(self):
+        return f"Release-{self.release_number} for {self.bmr.batch_number}"
+    
+    def save(self, *args, **kwargs):
+        if not self.release_number:
+            self.release_number = self.generate_release_number()
+        super().save(*args, **kwargs)
+    
+    def generate_release_number(self):
+        """Generate unique release number"""
+        from django.db.models import Max
+        from datetime import datetime
+        year = datetime.now().year
+        prefix = f"REL{year}"
+        max_release = RawMaterialRelease.objects.filter(release_number__startswith=prefix).aggregate(Max('release_number'))['release_number__max']
+        if max_release:
+            try:
+                last_num = int(max_release.replace(prefix, ""))
+            except Exception:
+                last_num = 0
+            next_num = last_num + 1
+        else:
+            next_num = 1
+        while True:
+            candidate = f"{prefix}{next_num:04d}"
+            if not RawMaterialRelease.objects.filter(release_number=candidate).exists():
+                return candidate
+            next_num += 1
+    
+    class Meta:
+        ordering = ['-release_date']
+
+class RawMaterialReleaseItem(models.Model):
+    """Individual material items in a release"""
+    
+    release = models.ForeignKey(RawMaterialRelease, on_delete=models.CASCADE, related_name='items')
+    material = models.ForeignKey(BMRMaterial, on_delete=models.CASCADE)
+    
+    # Release quantities
+    requested_quantity = models.DecimalField(max_digits=10, decimal_places=4)
+    released_quantity = models.DecimalField(max_digits=10, decimal_places=4, default=0)
+    
+    # Material details at time of release
+    batch_lot_number = models.CharField(max_length=50)
+    expiry_date = models.DateField(null=True, blank=True)
+    
+    # Status
+    is_released = models.BooleanField(default=False)
+    release_date = models.DateTimeField(null=True, blank=True)
+    
+    def __str__(self):
+        return f"{self.release.release_number} - {self.material.material_name}"
 
 class BMRSignature(models.Model):
     """Electronic signatures for BMR approval and sign-offs"""

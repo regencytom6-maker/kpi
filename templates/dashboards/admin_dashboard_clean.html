@@ -811,6 +811,30 @@ document.addEventListener('DOMContentLoaded', function() {
             </li>
         </ul>
         
+        <div class="sidebar-section">Machine Management</div>
+        <ul class="sidebar-menu">
+            <li>
+                <a href="#" onclick="showMachineOverview()">
+                    <i class="fas fa-cogs"></i> Machine Overview
+                </a>
+            </li>
+            <li>
+                <a href="#" onclick="showBreakdownReport()">
+                    <i class="fas fa-exclamation-triangle"></i> Breakdown Report
+                </a>
+            </li>
+            <li>
+                <a href="#" onclick="showChangeoverReport()">
+                    <i class="fas fa-exchange-alt"></i> Changeover Report
+                </a>
+            </li>
+            <li>
+                <a href="{% url 'admin:workflow_machine_changelist' %}">
+                    <i class="fas fa-tools"></i> Manage Machines
+                </a>
+            </li>
+        </ul>
+        
         <div class="sidebar-section">Admin</div>
         <ul class="sidebar-menu">
             <li>
@@ -852,6 +876,52 @@ document.addEventListener('DOMContentLoaded', function() {
                 <div class="stats-card">
                     <div class="metric-value">{{ rejected_batches }}</div>
                     <div class="metric-label">Rejected Batches</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Machine Management Section -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <h3 class="section-title">Machine Management</h3>
+            </div>
+            <div class="col-lg-3 col-md-6 mb-3">
+                <div class="stats-card bg-warning text-dark" onclick="showBreakdownReport()" style="cursor: pointer;">
+                    <div class="metric-value">{{ total_breakdowns }}</div>
+                    <div class="metric-label">Total Breakdowns</div>
+                    <small class="text-muted">Today: {{ breakdowns_today }}</small>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6 mb-3">
+                <div class="stats-card bg-info text-white" onclick="showChangeoverReport()" style="cursor: pointer;">
+                    <div class="metric-value">{{ total_changeovers }}</div>
+                    <div class="metric-label">Total Changeovers</div>
+                    <small class="text-muted">Today: {{ changeovers_today }}</small>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6 mb-3">
+                <div class="stats-card bg-success text-white" onclick="showMachineOverview()">
+                    <div class="metric-value">{{ all_machines.count }}</div>
+                    <div class="metric-label">Active Machines</div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6 mb-3">
+                <div class="stats-card">
+                    <div class="metric-value">
+                        {% if recent_breakdowns %}
+                            {{ recent_breakdowns.first.machine_used.name|default:"N/A" }}
+                        {% else %}
+                            No Issues
+                        {% endif %}
+                    </div>
+                    <div class="metric-label">Last Breakdown</div>
+                    <small class="text-muted">
+                        {% if recent_breakdowns %}
+                            {{ recent_breakdowns.first.breakdown_start_time|date:"M d, H:i" }}
+                        {% else %}
+                            All systems operational
+                        {% endif %}
+                    </small>
                 </div>
             </div>
         </div>
@@ -1453,5 +1523,176 @@ document.addEventListener('DOMContentLoaded', function() {
         console.error('Dropdown toggle not found');
     }
 });
+
+// Machine Management Functions
+function showMachineOverview() {
+    const modalContent = `
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Machine Name</th>
+                        <th>Type</th>
+                        <th>Status</th>
+                        <th>Usage Count</th>
+                        <th>Breakdowns</th>
+                        <th>Changeovers</th>
+                        <th>Breakdown Rate</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for machine_id, stats in machine_stats.items %}
+                    <tr>
+                        <td>{{ stats.machine.name }}</td>
+                        <td>{{ stats.machine.machine_type|title }}</td>
+                        <td>
+                            {% if stats.machine.is_active %}
+                                <span class="badge bg-success">Active</span>
+                            {% else %}
+                                <span class="badge bg-danger">Inactive</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ stats.usage_count }}</td>
+                        <td>{{ stats.breakdown_count }}</td>
+                        <td>{{ stats.changeover_count }}</td>
+                        <td>{{ stats.breakdown_rate }}%</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    `;
+    showMachineModal('Machine Overview', modalContent);
+}
+
+function showBreakdownReport() {
+    const modalContent = `
+        <div class="mb-3">
+            <h6>Recent Breakdowns (Last 30 Days)</h6>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Machine</th>
+                        <th>BMR</th>
+                        <th>Start Time</th>
+                        <th>End Time</th>
+                        <th>Duration</th>
+                        <th>Reason</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for breakdown in recent_breakdowns %}
+                    <tr>
+                        <td>{{ breakdown.machine_used.name|default:"N/A" }}</td>
+                        <td>{{ breakdown.bmr.batch_number }}</td>
+                        <td>{{ breakdown.breakdown_start_time|date:"M d, H:i" }}</td>
+                        <td>{{ breakdown.breakdown_end_time|date:"M d, H:i"|default:"Ongoing" }}</td>
+                        <td>
+                            {% if breakdown.breakdown_end_time %}
+                                {{ breakdown.breakdown_duration_minutes|default:"N/A" }} min
+                            {% else %}
+                                Ongoing
+                            {% endif %}
+                        </td>
+                        <td>{{ breakdown.breakdown_reason|default:"No reason provided" }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center text-muted">No recent breakdowns</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    `;
+    showMachineModal('Breakdown Report', modalContent);
+}
+
+function showChangeoverReport() {
+    const modalContent = `
+        <div class="mb-3">
+            <h6>Recent Changeovers (Last 30 Days)</h6>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Machine</th>
+                        <th>BMR</th>
+                        <th>Start Time</th>
+                        <th>End Time</th>
+                        <th>Duration</th>
+                        <th>Details</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for changeover in recent_changeovers %}
+                    <tr>
+                        <td>{{ changeover.machine_used.name|default:"N/A" }}</td>
+                        <td>{{ changeover.bmr.batch_number }}</td>
+                        <td>{{ changeover.changeover_start_time|date:"M d, H:i" }}</td>
+                        <td>{{ changeover.changeover_end_time|date:"M d, H:i"|default:"Ongoing" }}</td>
+                        <td>
+                            {% if changeover.changeover_end_time %}
+                                {{ changeover.changeover_duration_minutes|default:"N/A" }} min
+                            {% else %}
+                                Ongoing
+                            {% endif %}
+                        </td>
+                        <td>{{ changeover.changeover_reason|default:"No details provided" }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center text-muted">No recent changeovers</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    `;
+    showMachineModal('Changeover Report', modalContent);
+}
+
+function showMachineModal(title, content) {
+    // Remove existing modal if any
+    const existingModal = document.getElementById('machineModal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+    // Create modal HTML
+    const modalHtml = `
+        <div class="modal fade" id="machineModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">${title}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        ${content}
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Add modal to body
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // Show modal
+    const modal = new bootstrap.Modal(document.getElementById('machineModal'));
+    modal.show();
+    
+    // Clean up when modal is hidden
+    document.getElementById('machineModal').addEventListener('hidden.bs.modal', function() {
+        this.remove();
+    });
+}
 </script>
 {% endblock %}

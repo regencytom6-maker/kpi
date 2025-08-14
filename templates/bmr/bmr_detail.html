@@ -115,6 +115,16 @@
                                     {% endif %}
                                 </td>
                             </tr>
+                            <tr>
+                                <td><strong>Packaging Size:</strong></td>
+                                <td>
+                                    {% if bmr.product.packaging_size_in_units %}
+                                        {{ bmr.product.packaging_size_in_units|floatformat:2 }} units
+                                    {% else %}
+                                        <span class="text-muted">Not specified</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
                         </table>
                     </div>
                 </div>

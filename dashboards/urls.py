@@ -13,7 +13,7 @@ urlpatterns = [
     # Regulatory Dashboard
     path('regulatory/', views.regulatory_dashboard, name='regulatory_dashboard'),
     
-    # Store Manager Dashboard
+    # Store Manager Dashboard (Raw Material Release)
     path('store/', views.store_dashboard, name='store_dashboard'),
     
     # Generic Operator Dashboard

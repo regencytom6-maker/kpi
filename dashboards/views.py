@@ -85,6 +85,7 @@ def workflow_chart(request):
     return render(request, 'dashboards/workflow_chart.html', {'dashboard_title': 'Workflow Chart'})
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
+from django.views.decorators.csrf import csrf_protect
 from django.contrib import messages
 from django.db.models import Count, Q, Min, Max, F, ExpressionWrapper, DateTimeField, Q
 from django.utils import timezone
@@ -96,7 +97,7 @@ from django.db.models.functions import Coalesce
 import csv
 import xlwt
 from bmr.models import BMR
-from workflow.models import BatchPhaseExecution
+from workflow.models import BatchPhaseExecution, Machine
 from workflow.services import WorkflowService
 from products.models import Product
 from accounts.models import CustomUser
@@ -112,7 +113,7 @@ def dashboard_home(request):
     role_dashboard_map = {
         'qa': 'dashboards:qa_dashboard',
         'regulatory': 'dashboards:regulatory_dashboard',
-        'store_manager': 'dashboards:store_dashboard',
+        'store_manager': 'dashboards:store_dashboard',  # Raw material release
         'packaging_store': 'dashboards:packaging_dashboard',
         'finished_goods_store': 'dashboards:finished_goods_dashboard',
         'mixing_operator': 'dashboards:mixing_dashboard',
@@ -126,7 +127,7 @@ def dashboard_home(request):
         'coating_operator': 'dashboards:coating_dashboard',
         'drying_operator': 'dashboards:drying_dashboard',
         'filling_operator': 'dashboards:filling_dashboard',
-        'dispensing_operator': 'dashboards:operator_dashboard',
+        'dispensing_operator': 'dashboards:operator_dashboard',  # Material dispensing uses operator dashboard
         'equipment_operator': 'dashboards:operator_dashboard',
         'cleaning_operator': 'dashboards:operator_dashboard',
         'admin': 'dashboards:admin_dashboard',
@@ -515,6 +516,58 @@ def admin_dashboard(request):
     if completed_productions:
         avg_production_time = round(sum(completed_productions) / len(completed_productions), 1)
     
+    # === MACHINE MANAGEMENT DATA ===
+    # Get all machines
+    all_machines = Machine.objects.all().order_by('machine_type', 'name')
+    
+    # Get recent breakdowns (last 30 days)
+    recent_breakdowns = BatchPhaseExecution.objects.filter(
+        breakdown_occurred=True,
+        breakdown_start_time__gte=timezone.now() - timedelta(days=30)
+    ).select_related('machine_used', 'bmr').order_by('-breakdown_start_time')[:20]
+    
+    # Get recent changeovers (last 30 days)
+    recent_changeovers = BatchPhaseExecution.objects.filter(
+        changeover_occurred=True,
+        changeover_start_time__gte=timezone.now() - timedelta(days=30)
+    ).select_related('machine_used', 'bmr').order_by('-changeover_start_time')[:20]
+    
+    # Count total breakdowns and changeovers
+    total_breakdowns = BatchPhaseExecution.objects.filter(breakdown_occurred=True).count()
+    total_changeovers = BatchPhaseExecution.objects.filter(changeover_occurred=True).count()
+    
+    # Breakdown and changeover counts for today
+    today = timezone.now().date()
+    breakdowns_today = BatchPhaseExecution.objects.filter(
+        breakdown_occurred=True,
+        breakdown_start_time__date=today
+    ).count()
+    changeovers_today = BatchPhaseExecution.objects.filter(
+        changeover_occurred=True,
+        changeover_start_time__date=today
+    ).count()
+    
+    # Machine utilization summary
+    machine_stats = {}
+    for machine in all_machines:
+        usage_count = BatchPhaseExecution.objects.filter(machine_used=machine).count()
+        breakdown_count = BatchPhaseExecution.objects.filter(
+            machine_used=machine,
+            breakdown_occurred=True
+        ).count()
+        changeover_count = BatchPhaseExecution.objects.filter(
+            machine_used=machine,
+            changeover_occurred=True
+        ).count()
+        
+        machine_stats[machine.id] = {
+            'machine': machine,
+            'usage_count': usage_count,
+            'breakdown_count': breakdown_count,
+            'changeover_count': changeover_count,
+            'breakdown_rate': round((breakdown_count / usage_count * 100), 1) if usage_count > 0 else 0
+        }
+    
     context = {
         'user': request.user,
         'dashboard_title': 'System Administration Dashboard',
@@ -552,12 +605,22 @@ def admin_dashboard(request):
         'active_phases': active_phases[:10],  # Show first 10 active phases
         # Recent activity
         'recent_bmrs': recent_bmrs,
+        # === MACHINE MANAGEMENT DATA ===
+        'all_machines': all_machines,
+        'recent_breakdowns': recent_breakdowns,
+        'recent_changeovers': recent_changeovers,
+        'total_breakdowns': total_breakdowns,
+        'total_changeovers': total_changeovers,
+        'breakdowns_today': breakdowns_today,
+        'changeovers_today': changeovers_today,
+        'machine_stats': machine_stats,
     }
     
     # Restore the original working dashboard
     return render(request, 'dashboards/admin_dashboard_clean.html', context)
 
 @login_required
+@csrf_protect
 def qa_dashboard(request):
     """Quality Assurance Dashboard"""
     if request.user.role != 'qa':
@@ -786,15 +849,55 @@ def regulatory_dashboard(request):
 
 @login_required
 def store_dashboard(request):
-    """Store Manager Dashboard - Material Dispensing Only"""
+    """Store Manager Dashboard - Raw Material Release Phase"""
     if request.user.role != 'store_manager':
         messages.error(request, 'Access denied. Store Manager role required.')
         return redirect('dashboards:dashboard_home')
     
+    if request.method == 'POST':
+        bmr_id = request.POST.get('bmr_id')
+        action = request.POST.get('action')
+        notes = request.POST.get('notes', '')
+        
+        try:
+            bmr = BMR.objects.get(pk=bmr_id)
+            
+            # Get the raw material release phase
+            phase_execution = BatchPhaseExecution.objects.get(
+                bmr=bmr,
+                phase__phase_name='raw_material_release'
+            )
+            
+            if action == 'start':
+                phase_execution.status = 'in_progress'
+                phase_execution.started_by = request.user
+                phase_execution.started_date = timezone.now()
+                phase_execution.operator_comments = f"Raw material release started by {request.user.get_full_name()}. Notes: {notes}"
+                phase_execution.save()
+                
+                messages.success(request, f'Raw material release started for batch {bmr.batch_number}.')
+                
+            elif action == 'complete':
+                phase_execution.status = 'completed'
+                phase_execution.completed_by = request.user
+                phase_execution.completed_date = timezone.now()
+                phase_execution.operator_comments = f"Raw materials released by {request.user.get_full_name()}. Notes: {notes}"
+                phase_execution.save()
+                
+                # Trigger next phase in workflow (material_dispensing)
+                WorkflowService.trigger_next_phase(bmr, phase_execution.phase)
+                
+                messages.success(request, f'Raw materials released for batch {bmr.batch_number}. Material dispensing is now available.')
+                
+        except Exception as e:
+            messages.error(request, f'Error processing raw material release: {str(e)}')
+    
+        return redirect('dashboards:store_dashboard')
+    
     # Get all BMRs
     all_bmrs = BMR.objects.select_related('product', 'created_by').all()
     
-    # Get material dispensing phases this user can work on
+    # Get raw material release phases this user can work on
     my_phases = []
     for bmr in all_bmrs:
         user_phases = WorkflowService.get_phases_for_user_role(bmr, request.user.role)
@@ -811,33 +914,63 @@ def store_dashboard(request):
         'total_batches': len(set([p.bmr for p in my_phases])),
     }
     
-    daily_progress = min(100, (stats['completed_today'] / max(1, stats['pending_phases'] + stats['completed_today'])) * 100)
+    # Get recently completed releases (last 7 days)
+    recently_completed = BatchPhaseExecution.objects.filter(
+        phase__phase_name='raw_material_release',
+        status='completed',
+        completed_date__gte=timezone.now() - timedelta(days=7)
+    ).select_related('bmr__product', 'completed_by').order_by('-completed_date')[:10]
     
-    context = {
-        'user': request.user,
+    return render(request, 'dashboards/store_dashboard.html', {
         'my_phases': my_phases,
         'stats': stats,
-        'daily_progress': daily_progress,
-        'dashboard_title': 'Store Manager Dashboard'
-    }
-    
-    return render(request, 'dashboards/store_dashboard.html', context)
+        'recently_completed': recently_completed,
+    })
 
 @login_required
 def operator_dashboard(request):
     """Generic operator dashboard for production phases"""
     
-    # Handle POST requests for phase completion
+    # Handle POST requests for phase start/completion
     if request.method == 'POST':
         action = request.POST.get('action')
         phase_id = request.POST.get('phase_id')
         comments = request.POST.get('comments', '')
+        
+        # Machine-related fields
+        machine_id = request.POST.get('machine_id')
+        
+        # Breakdown fields
+        breakdown_occurred = request.POST.get('breakdown_occurred') == 'on'
+        breakdown_start_time = request.POST.get('breakdown_start_time')
+        breakdown_end_time = request.POST.get('breakdown_end_time')
+        
+        # Changeover fields  
+        changeover_occurred = request.POST.get('changeover_occurred') == 'on'
+        changeover_start_time = request.POST.get('changeover_start_time')
+        changeover_end_time = request.POST.get('changeover_end_time')
         
         if phase_id and action in ['start', 'complete']:
             try:
                 phase_execution = get_object_or_404(BatchPhaseExecution, pk=phase_id)
                 
                 if action == 'start':
+                    # Check if machine selection is required for this phase
+                    machine_required_phases = ['granulation', 'blending', 'compression', 'coating', 'blister_packing', 'bulk_packing', 'filling']
+                    phase_name = phase_execution.phase.phase_name
+                    
+                    # For capsule filling, only require machine for filling phase
+                    if phase_name == 'filling' and phase_execution.bmr.product.product_type != 'Capsule':
+                        machine_required = False
+                    elif phase_name in machine_required_phases:
+                        machine_required = True
+                    else:
+                        machine_required = False
+                    
+                    if machine_required and not machine_id:
+                        messages.error(request, f'Machine selection is required for {phase_name} phase.')
+                        return redirect(request.path)
+                    
                     # Validate that the phase can actually be started
                     if not WorkflowService.can_start_phase(phase_execution.bmr, phase_execution.phase.phase_name):
                         messages.error(request, f'Cannot start {phase_execution.phase.phase_name} for batch {phase_execution.bmr.batch_number} - prerequisites not met.')
@@ -847,21 +980,64 @@ def operator_dashboard(request):
                     phase_execution.started_by = request.user
                     phase_execution.started_date = timezone.now()
                     phase_execution.operator_comments = f"Started by {request.user.get_full_name()}. Notes: {comments}"
+                    
+                    # Set machine if provided
+                    if machine_id:
+                        try:
+                            machine = Machine.objects.get(id=machine_id, is_active=True)
+                            phase_execution.machine_used = machine
+                        except Machine.DoesNotExist:
+                            messages.error(request, 'Selected machine not found or inactive.')
+                            return redirect(request.path)
+                    
                     phase_execution.save()
                     
-                    messages.success(request, f'Phase {phase_execution.phase.phase_name} started for batch {phase_execution.bmr.batch_number}.')
+                    machine_info = f" using {phase_execution.machine_used.name}" if phase_execution.machine_used else ""
+                    messages.success(request, f'Phase {phase_execution.phase.phase_name}{machine_info} started for batch {phase_execution.bmr.batch_number}.')
                     
                 elif action == 'complete':
                     phase_execution.status = 'completed'
                     phase_execution.completed_by = request.user
                     phase_execution.completed_date = timezone.now()
                     phase_execution.operator_comments = f"Completed by {request.user.get_full_name()}. Notes: {comments}"
+                    
+                    # Only handle breakdown/changeover for production phases (not material dispensing)
+                    phase_name = phase_execution.phase.phase_name
+                    exclude_breakdown_phases = ['material_dispensing', 'bmr_creation', 'regulatory_approval', 'bulk_packing', 'secondary_packaging']
+                    
+                    if phase_name not in exclude_breakdown_phases:
+                        # Handle breakdown tracking
+                        phase_execution.breakdown_occurred = breakdown_occurred
+                        if breakdown_occurred and breakdown_start_time and breakdown_end_time:
+                            from datetime import datetime
+                            try:
+                                phase_execution.breakdown_start_time = datetime.fromisoformat(breakdown_start_time.replace('T', ' '))
+                                phase_execution.breakdown_end_time = datetime.fromisoformat(breakdown_end_time.replace('T', ' '))
+                            except ValueError:
+                                messages.warning(request, 'Invalid breakdown time format. Breakdown recorded without times.')
+                        
+                        # Handle changeover tracking
+                        phase_execution.changeover_occurred = changeover_occurred
+                        if changeover_occurred and changeover_start_time and changeover_end_time:
+                            from datetime import datetime
+                            try:
+                                phase_execution.changeover_start_time = datetime.fromisoformat(changeover_start_time.replace('T', ' '))
+                                phase_execution.changeover_end_time = datetime.fromisoformat(changeover_end_time.replace('T', ' '))
+                            except ValueError:
+                                messages.warning(request, 'Invalid changeover time format. Changeover recorded without times.')
+                    
                     phase_execution.save()
                     
                     # Trigger next phase in workflow
                     WorkflowService.trigger_next_phase(phase_execution.bmr, phase_execution.phase)
                     
-                    messages.success(request, f'Phase {phase_execution.phase.phase_name} completed for batch {phase_execution.bmr.batch_number}.')
+                    completion_msg = f'Phase {phase_execution.phase.phase_name} completed for batch {phase_execution.bmr.batch_number}.'
+                    if breakdown_occurred:
+                        completion_msg += ' Breakdown recorded.'
+                    if changeover_occurred:
+                        completion_msg += ' Changeover recorded.'
+                    
+                    messages.success(request, completion_msg)
                     
             except Exception as e:
                 messages.error(request, f'Error processing phase: {str(e)}')
@@ -899,6 +1075,7 @@ def operator_dashboard(request):
         'tube_filling_operator': 'tube_filling',
         'packing_operator': 'packing',
         'sorting_operator': 'sorting',
+        'dispensing_operator': 'dispensing',  # Material dispensing operator
     }
 
     phase_name = role_phase_mapping.get(request.user.role, 'production')
@@ -945,6 +1122,33 @@ def operator_dashboard(request):
         for p in my_phases if p.status in ['pending', 'in_progress']
     ]
 
+    # Get machines for this operator's phase type
+    machine_type_mapping = {
+        'granulation_operator': 'granulation',
+        'blending_operator': 'blending',
+        'compression_operator': 'compression',
+        'coating_operator': 'coating',
+        'packing_operator': 'blister_packing',  # Packing operator uses blister packing machines
+        'filling_operator': 'filling',  # For capsule filling
+    }
+    
+    user_machine_type = machine_type_mapping.get(request.user.role)
+    available_machines = []
+    if user_machine_type:
+        available_machines = Machine.objects.filter(
+            machine_type=user_machine_type,
+            is_active=True
+        ).order_by('name')
+
+    # Determine if this role should show breakdown/changeover tracking
+    # Exclude material dispensing and administrative phases
+    breakdown_tracking_roles = [
+        'mixing_operator', 'granulation_operator', 'blending_operator', 'compression_operator',
+        'coating_operator', 'drying_operator', 'filling_operator', 'tube_filling_operator',
+        'sorting_operator', 'packing_operator'
+    ]
+    show_breakdown_tracking = request.user.role in breakdown_tracking_roles
+
     context = {
         'user': request.user,
         'my_phases': my_phases,
@@ -955,6 +1159,8 @@ def operator_dashboard(request):
         'operator_history': operator_history,
         'operator_stats': operator_stats,
         'operator_assignments': operator_assignments,
+        'available_machines': available_machines,
+        'show_breakdown_tracking': show_breakdown_tracking,
     }
 
     return render(request, 'dashboards/operator_dashboard.html', context)
@@ -1243,6 +1449,16 @@ def packing_dashboard(request):
                         messages.error(request, f'Cannot start packing for batch {phase_execution.bmr.batch_number} - prerequisites not met.')
                         return redirect('dashboards:packing_dashboard')
                     
+                    # Handle machine selection
+                    machine_id = request.POST.get('machine_id')
+                    if machine_id:
+                        try:
+                            machine = Machine.objects.get(id=machine_id, is_active=True)
+                            phase_execution.machine_used = machine
+                        except Machine.DoesNotExist:
+                            messages.error(request, 'Selected machine is not available.')
+                            return redirect('dashboards:packing_dashboard')
+                    
                     phase_execution.status = 'in_progress'
                     phase_execution.started_by = request.user
                     phase_execution.started_date = timezone.now()
@@ -1252,6 +1468,34 @@ def packing_dashboard(request):
                     messages.success(request, f'Packing started for batch {phase_execution.bmr.batch_number}.')
                     
                 elif action == 'complete':
+                    # Handle breakdown tracking
+                    breakdown_occurred = request.POST.get('breakdown_occurred') == 'on'
+                    if breakdown_occurred:
+                        phase_execution.breakdown_occurred = True
+                        breakdown_start = request.POST.get('breakdown_start_time')
+                        breakdown_end = request.POST.get('breakdown_end_time')
+                        breakdown_reason = request.POST.get('breakdown_reason', '')
+                        
+                        if breakdown_start:
+                            phase_execution.breakdown_start_time = datetime.fromisoformat(breakdown_start.replace('T', ' '))
+                        if breakdown_end:
+                            phase_execution.breakdown_end_time = datetime.fromisoformat(breakdown_end.replace('T', ' '))
+                        phase_execution.breakdown_reason = breakdown_reason
+                    
+                    # Handle changeover tracking
+                    changeover_occurred = request.POST.get('changeover_occurred') == 'on'
+                    if changeover_occurred:
+                        phase_execution.changeover_occurred = True
+                        changeover_start = request.POST.get('changeover_start_time')
+                        changeover_end = request.POST.get('changeover_end_time')
+                        changeover_reason = request.POST.get('changeover_reason', '')
+                        
+                        if changeover_start:
+                            phase_execution.changeover_start_time = datetime.fromisoformat(changeover_start.replace('T', ' '))
+                        if changeover_end:
+                            phase_execution.changeover_end_time = datetime.fromisoformat(changeover_end.replace('T', ' '))
+                        phase_execution.changeover_reason = changeover_reason
+                    
                     phase_execution.status = 'completed'
                     phase_execution.completed_by = request.user
                     phase_execution.completed_date = timezone.now()
@@ -1289,10 +1533,37 @@ def packing_dashboard(request):
         ).count(),
         'total_batches': len(set([p.bmr for p in my_phases])),
     }
-    
+
     daily_progress = min(100, (stats['completed_today'] / max(1, stats['pending_phases'] + stats['completed_today'])) * 100)
     
-    # Build operator history for this user (recent phases where user was started_by or completed_by)
+    # Get available machines for this user role
+    machine_type_mapping = {
+        'mixing_operator': 'mixing',
+        'granulation_operator': 'granulation',
+        'blending_operator': 'blending', 
+        'compression_operator': 'compression',
+        'coating_operator': 'coating',
+        'tube_filling_operator': 'tube_filling',
+        'packing_operator': 'blister_packing',  # Packing operator uses blister packing machines
+        'filling_operator': 'filling',  # For capsule filling
+    }
+    
+    user_machine_type = machine_type_mapping.get(request.user.role)
+    available_machines = []
+    if user_machine_type:
+        available_machines = Machine.objects.filter(
+            machine_type=user_machine_type,
+            is_active=True
+        ).order_by('name')
+    
+    # Determine if this role should show breakdown/changeover tracking
+    # Only for phases that use machines
+    breakdown_tracking_roles = [
+        'mixing_operator', 'granulation_operator', 'blending_operator', 'compression_operator',
+        'coating_operator', 'tube_filling_operator', 'filling_operator'
+    ]
+    # For packing operator, only show breakdown tracking for blister packing phases (machine-based)
+    show_breakdown_tracking = request.user.role in breakdown_tracking_roles    # Build operator history for this user (recent phases where user was started_by or completed_by)
     recent_phases = BatchPhaseExecution.objects.filter(
         Q(started_by=request.user) | Q(completed_by=request.user)
     ).order_by('-started_date', '-completed_date')[:10]
@@ -1313,6 +1584,8 @@ def packing_dashboard(request):
         'daily_progress': daily_progress,
         'dashboard_title': 'Packing Dashboard',
         'operator_history': operator_history,
+        'available_machines': available_machines,
+        'show_breakdown_tracking': show_breakdown_tracking,
     }
     
     return render(request, 'dashboards/packing_dashboard.html', context)
@@ -1739,6 +2012,18 @@ def export_timeline_data(request, timeline_data=None, format_type=None):
                     'duration_hours': None,
                     'operator_comments': getattr(phase, 'operator_comments', '') or '',
                     'phase_order': phase.phase.phase_order if hasattr(phase.phase, 'phase_order') else 0,
+                    # Machine tracking
+                    'machine_used': phase.machine_used.name if phase.machine_used else '',
+                    # Breakdown tracking
+                    'breakdown_occurred': 'Yes' if phase.breakdown_occurred else 'No',
+                    'breakdown_duration': phase.get_breakdown_duration() if hasattr(phase, 'get_breakdown_duration') and phase.breakdown_occurred else '',
+                    'breakdown_start_time': phase.breakdown_start_time if phase.breakdown_occurred else '',
+                    'breakdown_end_time': phase.breakdown_end_time if phase.breakdown_occurred else '',
+                    # Changeover tracking
+                    'changeover_occurred': 'Yes' if phase.changeover_occurred else 'No',
+                    'changeover_duration': phase.get_changeover_duration() if hasattr(phase, 'get_changeover_duration') and phase.changeover_occurred else '',
+                    'changeover_start_time': phase.changeover_start_time if phase.changeover_occurred else '',
+                    'changeover_end_time': phase.changeover_end_time if phase.changeover_occurred else '',
                 }
                 if phase.started_date and phase.completed_date:
                     duration = phase.completed_date - phase.started_date
@@ -1776,14 +2061,22 @@ def export_timeline_data(request, timeline_data=None, format_type=None):
             writer.writerow([])  # Empty row
             writer.writerow([
                 'Phase Name', 'Status', 'Started Date', 'Started By', 
-                'Completed Date', 'Completed By', 'Duration (Hours)', 'Comments'
+                'Completed Date', 'Completed By', 'Duration (Hours)', 'Comments',
+                'Machine Used', 'Breakdown Occurred', 'Breakdown Duration (Min)', 
+                'Breakdown Start', 'Breakdown End', 'Changeover Occurred', 
+                'Changeover Duration (Min)', 'Changeover Start', 'Changeover End'
             ])
             for phase in item['phase_timeline']:
                 writer.writerow([
                     phase['phase_name'], phase['status'],
                     phase['started_date'], phase['started_by'],
                     phase['completed_date'], phase['completed_by'],
-                    phase['duration_hours'], phase['operator_comments']
+                    phase['duration_hours'], phase['operator_comments'],
+                    phase['machine_used'], phase['breakdown_occurred'], 
+                    phase['breakdown_duration'], phase['breakdown_start_time'],
+                    phase['breakdown_end_time'], phase['changeover_occurred'],
+                    phase['changeover_duration'], phase['changeover_start_time'],
+                    phase['changeover_end_time']
                 ])
         return response
     
@@ -1913,7 +2206,10 @@ def export_timeline_data(request, timeline_data=None, format_type=None):
             # Detail headers
             headers = [
                 "Phase Name", "Status", "Started Date", "Started By", 
-                "Completed Date", "Completed By", "Duration (Hours)", "Comments"
+                "Completed Date", "Completed By", "Duration (Hours)", "Comments",
+                "Machine Used", "Breakdown Occurred", "Breakdown Duration (Min)", 
+                "Breakdown Start", "Breakdown End", "Changeover Occurred", 
+                "Changeover Duration (Min)", "Changeover Start", "Changeover End"
             ]
             
             header_row = detail_sheet.row_dimensions[5]
@@ -1926,7 +2222,13 @@ def export_timeline_data(request, timeline_data=None, format_type=None):
                 cell.fill = header_fill
                 cell.alignment = header_alignment
                 cell.border = border
-                detail_sheet.column_dimensions[get_column_letter(col_num)].width = 18
+                # Adjust column widths for new columns
+                if col_num <= 8:  # Original columns
+                    detail_sheet.column_dimensions[get_column_letter(col_num)].width = 18
+                elif col_num in [9, 10, 14]:  # Machine, breakdown occurred, changeover occurred
+                    detail_sheet.column_dimensions[get_column_letter(col_num)].width = 15
+                else:  # Date/time columns
+                    detail_sheet.column_dimensions[get_column_letter(col_num)].width = 20
             
             # Add phase data
             phase_row = 6
@@ -1934,6 +2236,10 @@ def export_timeline_data(request, timeline_data=None, format_type=None):
                 # Format dates for display
                 started_date = phase['started_date'].strftime('%Y-%m-%d %H:%M') if phase['started_date'] else "Not Started"
                 completed_date = phase['completed_date'].strftime('%Y-%m-%d %H:%M') if phase['completed_date'] else "Not Completed"
+                breakdown_start = phase['breakdown_start_time'].strftime('%Y-%m-%d %H:%M') if phase['breakdown_start_time'] else ""
+                breakdown_end = phase['breakdown_end_time'].strftime('%Y-%m-%d %H:%M') if phase['breakdown_end_time'] else ""
+                changeover_start = phase['changeover_start_time'].strftime('%Y-%m-%d %H:%M') if phase['changeover_start_time'] else ""
+                changeover_end = phase['changeover_end_time'].strftime('%Y-%m-%d %H:%M') if phase['changeover_end_time'] else ""
                 
                 phase_data = [
                     phase['phase_name'],
@@ -1943,7 +2249,16 @@ def export_timeline_data(request, timeline_data=None, format_type=None):
                     completed_date,
                     phase['completed_by'] if phase['completed_by'] else "",
                     phase['duration_hours'] if phase['duration_hours'] is not None else "",
-                    phase['operator_comments'] if phase['operator_comments'] else ""
+                    phase['operator_comments'] if phase['operator_comments'] else "",
+                    phase['machine_used'] if phase['machine_used'] else "",
+                    phase['breakdown_occurred'],
+                    phase['breakdown_duration'] if phase['breakdown_duration'] else "",
+                    breakdown_start,
+                    breakdown_end,
+                    phase['changeover_occurred'],
+                    phase['changeover_duration'] if phase['changeover_duration'] else "",
+                    changeover_start,
+                    changeover_end
                 ]
                 
                 # Apply styling based on status
@@ -1960,12 +2275,20 @@ def export_timeline_data(request, timeline_data=None, format_type=None):
                     if row_fill:
                         cell.fill = row_fill
                     
-                    # For comments, use wrap text
+                    # For comments column, use wrap text
                     if col_num == 8:  # Comments column
                         cell.alignment = Alignment(wrap_text=True, vertical="top")
                         detail_sheet.row_dimensions[phase_row].height = max(15, min(50, len(str(cell_value)) // 10 * 15))
                     else:
                         cell.alignment = Alignment(horizontal="center", vertical="center")
+                    
+                    # Adjust column widths for new columns
+                    if col_num <= 8:  # Original columns
+                        detail_sheet.column_dimensions[get_column_letter(col_num)].width = 18
+                    elif col_num in [9, 10, 14]:  # Machine, breakdown occurred, changeover occurred
+                        detail_sheet.column_dimensions[get_column_letter(col_num)].width = 15
+                    else:  # Date/time columns
+                        detail_sheet.column_dimensions[get_column_letter(col_num)].width = 20
                 
                 phase_row += 1
         

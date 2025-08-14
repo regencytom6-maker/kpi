@@ -37,6 +37,28 @@ class Product(models.Model):
         help_text="Only applicable for tablets - normal or tablet type 2"
     )
     
+    # Batch size configuration - moved from BMR to Product
+    standard_batch_size = models.DecimalField(
+        max_digits=10, 
+        decimal_places=2,
+        default=1000,  # Default batch size
+        help_text="Standard batch size for this product"
+    )
+    batch_size_unit = models.CharField(
+        max_length=20,
+        default='units',
+        help_text="Unit of measurement for batch size (automatically set based on product type)"
+    )
+    
+    # New packaging size field
+    packaging_size_in_units = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Size of individual packaging unit (e.g., tablets per blister, capsules per bottle, ml per tube)"
+    )
+    
     # System fields
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -59,6 +81,17 @@ class Product(models.Model):
         if self.product_type != 'tablet':
             self.coating_type = ''
             self.tablet_type = ''
+        
+        # Set batch_size_unit based on product type
+        if self.product_type == 'tablet':
+            self.batch_size_unit = 'tablets'
+        elif self.product_type == 'capsule':
+            self.batch_size_unit = 'capsules'
+        elif self.product_type == 'ointment':
+            self.batch_size_unit = 'tubes'
+        else:
+            self.batch_size_unit = 'units'  # Default fallback
+            
         super().save(*args, **kwargs)
     
     class Meta:

@@ -25,11 +25,18 @@ class ProductAdminForm(forms.ModelForm):
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
     form = ProductAdminForm
-    list_display = ['product_name', 'product_type', 'coating_type', 'tablet_type', 'is_active']
+    list_display = [
+        'product_name', 'product_type', 'coating_type', 'tablet_type', 
+        'standard_batch_size', 'batch_size_unit', 'packaging_size_in_units', 'is_active'
+    ]
     list_filter = ['product_type', 'coating_type', 'tablet_type', 'is_active']
     search_fields = ['product_name']
     
-    fields = ['product_name', 'product_type', 'coating_type', 'tablet_type', 'is_active']
+    fields = [
+        'product_name', 'product_type', 'coating_type', 'tablet_type',
+        'standard_batch_size', 'batch_size_unit', 'packaging_size_in_units',
+        'is_active'
+    ]
     
     class Media:
         js = ('admin/js/product_conditional.js',)

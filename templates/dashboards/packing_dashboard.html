@@ -97,6 +97,7 @@
                                         <th>Product</th>
                                         <th>Packing Type</th>
                                         <th>Batch Size</th>
+                                        <th>Packaging Units Needed</th>
                                         <th>Phase</th>
                                         <th>Status</th>
                                         <th>Priority</th>
@@ -122,7 +123,21 @@
                                             {% endif %}
                                         </td>
                                         <td>{{ phase.bmr.batch_size|floatformat:0 }} {{ phase.bmr.batch_size_unit }}</td>
-                                        <td>{{ phase.phase.phase_name|title|slice:":15" }}</td>
+                                        <td>
+                                            {% if phase.bmr.product.packaging_size_in_units %}
+                                                <span class="badge bg-info">
+                                                    {% widthratio phase.bmr.batch_size phase.bmr.product.packaging_size_in_units 1 %} packages
+                                                </span>
+                                                <br><small class="text-muted">
+                                                    {{ phase.bmr.product.packaging_size_in_units|floatformat:0 }} units each
+                                                </small>
+                                            {% else %}
+                                                <span class="text-muted">Not set</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-primary">{{ phase.phase.phase_name|title }}</span>
+                                        </td>
                                         <td>
                                             {% if phase.status == 'pending' %}
                                                 <span class="badge bg-warning">Pending</span>
@@ -333,9 +348,31 @@
 function startPacking(phaseId, phaseName, bmrNumber) {
     const phaseDisplay = phaseName.replace('_', ' ').toUpperCase();
     document.getElementById('packingModalTitle').textContent = `Start ${phaseDisplay}`;
+    
+    // Check if machine selection is required for this phase
+    const machineRequiredPhases = ['granulation', 'blending', 'compression', 'coating', 'blister_packing', 'filling'];
+    const requiresMachine = machineRequiredPhases.includes(phaseName);
+    
+    let machineSelect = '';
+    if (requiresMachine && {{ available_machines|length }} > 0) {
+        machineSelect = `
+            <div class="form-group mb-3">
+                <label for="machine_select"><strong>Select Machine:</strong> <span class="text-danger">*</span></label>
+                <select class="form-control" id="machine_select" name="machine_id" required>
+                    <option value="">-- Select a machine --</option>
+                    {% for machine in available_machines %}
+                    <option value="{{ machine.id }}">{{ machine.name }}</option>
+                    {% endfor %}
+                </select>
+                <small class="text-info">Machine selection is mandatory for this phase.</small>
+            </div>
+        `;
+    }
+    
     document.getElementById('packingModalBody').innerHTML = `
         <p>Start <strong>${phaseDisplay}</strong> operation for BMR ${bmrNumber}?</p>
         <p class="text-info"><small>Ensure all materials and equipment are ready before starting.</small></p>
+        ${machineSelect}
     `;
     document.getElementById('packing_phase_id').value = phaseId;
     document.getElementById('packing_action').value = 'start';
@@ -347,10 +384,85 @@ function startPacking(phaseId, phaseName, bmrNumber) {
 
 function completePacking(phaseId, phaseName, bmrNumber) {
     const phaseDisplay = phaseName.replace('_', ' ').toUpperCase();
+    
+    // Only show breakdown/changeover tracking for blister packing (machine-based phases)
+    const machineBasedPhases = ['blister_packing'];
+    const showBreakdownTracking = machineBasedPhases.includes(phaseName);
+    
+    let breakdownSection = '';
+    if (showBreakdownTracking) {
+        breakdownSection = `
+        <!-- Breakdown Section -->
+        <div class="card mt-3">
+            <div class="card-header">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="breakdown_check" name="breakdown_occurred" onchange="toggleBreakdownFields()">
+                    <label class="form-check-label" for="breakdown_check">
+                        <strong>Breakdown Occurred</strong>
+                    </label>
+                </div>
+            </div>
+            <div class="card-body" id="breakdown_fields" style="display: none;">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="breakdown_start_time">Breakdown Start Time:</label>
+                            <input type="datetime-local" class="form-control" id="breakdown_start_time" name="breakdown_start_time">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="breakdown_end_time">Breakdown End Time:</label>
+                            <input type="datetime-local" class="form-control" id="breakdown_end_time" name="breakdown_end_time">
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group mt-2">
+                    <label for="breakdown_reason">Breakdown Reason:</label>
+                    <textarea class="form-control" id="breakdown_reason" name="breakdown_reason" rows="2" placeholder="Describe the issue and resolution"></textarea>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Changeover Section -->
+        <div class="card mt-3">
+            <div class="card-header">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="changeover_check" name="changeover_occurred" onchange="toggleChangeoverFields()">
+                    <label class="form-check-label" for="changeover_check">
+                        <strong>Changeover Occurred</strong>
+                    </label>
+                </div>
+            </div>
+            <div class="card-body" id="changeover_fields" style="display: none;">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="changeover_start_time">Changeover Start Time:</label>
+                            <input type="datetime-local" class="form-control" id="changeover_start_time" name="changeover_start_time">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="changeover_end_time">Changeover End Time:</label>
+                            <input type="datetime-local" class="form-control" id="changeover_end_time" name="changeover_end_time">
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group mt-2">
+                    <label for="changeover_reason">Changeover Details:</label>
+                    <textarea class="form-control" id="changeover_reason" name="changeover_reason" rows="2" placeholder="Describe the changeover process"></textarea>
+                </div>
+            </div>
+        </div>
+        `;
+    }
+    
     document.getElementById('packingModalTitle').textContent = `Complete ${phaseDisplay}`;
     document.getElementById('packingModalBody').innerHTML = `
         <p>Mark <strong>${phaseDisplay}</strong> as completed for BMR ${bmrNumber}?</p>
         <p class="text-warning"><small>Ensure all counts are verified and quality checks are completed.</small></p>
+        ${breakdownSection}
     `;
     document.getElementById('packing_phase_id').value = phaseId;
     document.getElementById('packing_action').value = 'complete';
@@ -358,6 +470,23 @@ function completePacking(phaseId, phaseName, bmrNumber) {
     document.getElementById('packingSubmitBtn').className = 'btn btn-warning';
     
     new bootstrap.Modal(document.getElementById('packingModal')).show();
+}
+
+// Helper functions for breakdown/changeover tracking
+function toggleBreakdownFields() {
+    const checkbox = document.getElementById('breakdown_check');
+    const fields = document.getElementById('breakdown_fields');
+    if (checkbox && fields) {
+        fields.style.display = checkbox.checked ? 'block' : 'none';
+    }
+}
+
+function toggleChangeoverFields() {
+    const checkbox = document.getElementById('changeover_check');
+    const fields = document.getElementById('changeover_fields');
+    if (checkbox && fields) {
+        fields.style.display = checkbox.checked ? 'block' : 'none';
+    }
 }
 
 // Handle form submission
