@@ -1,6 +1,0 @@
-@echo off
-echo Stopping any running Django servers...
-taskkill /f /im python.exe 2>NUL
-echo Starting Django server...
-start pharma_env\Scripts\python.exe manage.py runserver
-echo Server restarted. Please reload your browser.
