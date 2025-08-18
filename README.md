@@ -185,6 +185,32 @@ Batch numbers must be manually entered by QA officers in the format: **XXXYYYY**
 
 For technical support or feature requests, contact the development team.
 
+## 🆕 Recent Updates (August 2025)
+
+### Product Type Conflict Resolution
+We've resolved conflicts between product types that were causing issues in the workflow system:
+
+1. Fixed validation in the Product model to prevent conflicting product types
+2. Updated admin forms to properly handle product type changes
+3. Improved workflow phase handling for different product types
+4. Addressed issues with bulk packaging and blister packaging workflows
+
+### Workflow Enhancements
+We've made several improvements to the workflow engine:
+
+1. Fixed phase ordering for different product types
+2. Improved rollback functionality for QC failures
+3. Enhanced status tracking and reporting
+4. Optimized workflow transitions between phases
+
+### Dashboard Improvements
+The dashboards have been enhanced with:
+
+1. Better visualization of batch status
+2. More responsive charts and graphs
+3. Improved filtering and searching
+4. Enhanced timeline view for batch tracking
+
 ---
 
 **Kampala Pharmaceutical Industries Operations Department**  
