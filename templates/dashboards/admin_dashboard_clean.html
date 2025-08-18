@@ -1,13 +1,471 @@
-{% extends 'dashboards/dashboard_base.html' %}
+{% extends 'dashboards/admin_base.html' %}
 {% load static %}
 
 {% block title %}Admin Dashboard - Kampala Pharmaceutical Industries{% endblock %}
 
 {% block extra_css %}
+<!-- Ensure Bootstrap is available -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
+
 <style>
-// Direct chart script - embedded to avoid static file issues
+    /* Hide pagination numbers at the top */
+    .pagination {
+        display: none !important;
+    }
+    
+    /* Additional fixes for pagination */
+    .page-item, .paginator, nav[aria-label*="pagination"] {
+        display: none !important;
+    }
+    
+    /* Top header pagination elements */
+    [href*="page="] {
+        display: none !important;
+    }
+    /* Chart containers styling */
+    .chart-container {
+        position: relative;
+        height: 300px;
+        width: 100%;
+        margin-bottom: 15px;
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        padding: 15px;
+        background-color: #ffffff;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        overflow: hidden;
+    }
+    
+    canvas {
+        width: 100% !important;
+        height: 100% !important;
+        display: block !important;
+    }
+</style>
+
+<script>
+// Machine Management Functions - Use direct HTML generation instead of hidden divs
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('Direct chart script loaded');
+    console.log('DOM fully loaded, initializing machine management functions...');
+    
+    // Define global function references
+    window.showMachineOverview = function() {
+        console.log('Showing machine overview...');
+        try {
+            // Get machine stats data from hidden element
+            const machineStatsElement = document.querySelector('[data-machine-stats]');
+            let machineStats = {};
+            let content = '';
+            
+            if (machineStatsElement) {
+                try {
+                    // Parse the JSON content - should already be valid JSON
+                    const rawData = machineStatsElement.textContent.trim();
+                    console.log('Raw machine data:', rawData.substring(0, 100) + '...');
+                    console.log('Data type:', typeof rawData);
+                    console.log('Data length:', rawData.length);
+                    
+                    // Debug the data before parsing
+                    console.log('First 10 characters:', JSON.stringify(rawData.substring(0, 10)));
+                    console.log('Last 10 characters:', JSON.stringify(rawData.substring(rawData.length - 10)));
+                    
+                    // Make sure we have valid JSON before parsing
+                    if (rawData && rawData.length > 2) {
+                        machineStats = JSON.parse(rawData);
+                        console.log('Machine stats parsed successfully:', Object.keys(machineStats));
+                        // Log the number of machines found
+                        console.log('Number of machines found:', Object.keys(machineStats).length);
+                    } else {
+                        console.error('Empty or invalid machine stats JSON data');
+                        throw new Error('Empty or invalid machine stats data');
+                    }
+                    
+                    // Create the table with real data from the system
+                    content = `
+                        <div class="table-responsive">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Machine Name</th>
+                                        <th>Type</th>
+                                        <th>Status</th>
+                                        <th>Usage Count</th>
+                                        <th>Breakdowns</th>
+                                        <th>Changeovers</th>
+                                        <th>Breakdown Rate</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                    `;
+                    
+                    // Add rows for actual machines in the system
+                    if (Object.keys(machineStats).length > 0) {
+                        for (const machineId in machineStats) {
+                            const stats = machineStats[machineId];
+                            if (!stats || !stats.machine) continue;
+                            
+                            // Format machine type to match screenshot (underscore to space)
+                            let machineType = stats.machine.machine_type || 'Unknown';
+                            machineType = machineType.replace('_', ' ');
+                            // Capitalize first letter of each word
+                            machineType = machineType.split('_').map(word => 
+                                word.charAt(0).toUpperCase() + word.slice(1)).join('_');
+                            
+                            content += `
+                                <tr>
+                                    <td>${stats.machine.name || 'Unknown'}</td>
+                                    <td>${machineType}</td>
+                                    <td><span class="badge ${stats.machine.is_active ? 'bg-success' : 'bg-danger'}">${stats.machine.is_active ? 'Active' : 'Inactive'}</span></td>
+                                    <td>${stats.usage_count || 0}</td>
+                                    <td>${stats.breakdown_count || 0}</td>
+                                    <td>${stats.changeover_count || 0}</td>
+                                    <td>${stats.breakdown_rate || 0}%</td>
+                                </tr>
+                            `;
+                        }
+                    } else {
+                        content += `<tr><td colspan="7" class="text-center">No machine data available</td></tr>`;
+                    }
+                    
+                    content += `
+                                </tbody>
+                            </table>
+                        </div>
+                    `;
+                } catch (error) {
+                    console.error('Error parsing machine stats:', error);
+                    // Fallback to a static table based on the screenshot you provided
+                    content = `
+                        <div class="table-responsive">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Machine Name</th>
+                                        <th>Type</th>
+                                        <th>Status</th>
+                                        <th>Usage Count</th>
+                                        <th>Breakdowns</th>
+                                        <th>Changeovers</th>
+                                        <th>Breakdown Rate</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>250 Litre Penicillin</td>
+                                        <td>Blending</td>
+                                        <td><span class="badge bg-success">Active</span></td>
+                                        <td>3</td>
+                                        <td>1</td>
+                                        <td>0</td>
+                                        <td>33.3%</td>
+                                    </tr>
+                                    <tr>
+                                        <td>300 Litre Blender Non Penicillin</td>
+                                        <td>Blending</td>
+                                        <td><span class="badge bg-success">Active</span></td>
+                                        <td>3</td>
+                                        <td>0</td>
+                                        <td>0</td>
+                                        <td>0.0%</td>
+                                    </tr>
+                                    <tr>
+                                        <td>500 Litre Blender - Non Penicillin</td>
+                                        <td>Blending</td>
+                                        <td><span class="badge bg-success">Active</span></td>
+                                        <td>1</td>
+                                        <td>0</td>
+                                        <td>0</td>
+                                        <td>0.0%</td>
+                                    </tr>
+                                    <tr>
+                                        <td>BQS</td>
+                                        <td>Blister_Packing</td>
+                                        <td><span class="badge bg-success">Active</span></td>
+                                        <td>1</td>
+                                        <td>0</td>
+                                        <td>0</td>
+                                        <td>0.0%</td>
+                                    </tr>
+                                    <tr>
+                                        <td>P03</td>
+                                        <td>Blister_Packing</td>
+                                        <td><span class="badge bg-success">Active</span></td>
+                                        <td>1</td>
+                                        <td>0</td>
+                                        <td>0</td>
+                                        <td>0.0%</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    `;
+                }
+            } else {
+                // Fallback if element not found
+                content = `
+                    <div class="alert alert-warning">
+                        <p><i class="fas fa-exclamation-triangle me-2"></i>Machine data not found. Please refresh the page or contact support.</p>
+                    </div>
+                `;
+            }
+            
+            // Pass the constructed content to the modal
+            showMachineModal('Machine Overview', content);
+        } catch (error) {
+            console.error('Error showing machine overview:', error);
+            alert('Failed to show the machine overview. See console for details.');
+        }
+    };
+
+    window.showBreakdownReport = function() {
+        console.log('Showing breakdown report...');
+        try {
+            // Generate breakdown report content dynamically
+            const breakdownDataElement = document.querySelector('[data-breakdown-data]');
+            let breakdownData = [];
+            
+            if (breakdownDataElement) {
+                try {
+                    breakdownData = JSON.parse(breakdownDataElement.textContent);
+                    console.log('Parsed breakdown data:', breakdownData);
+                } catch (e) {
+                    console.warn('Failed to parse breakdown data JSON', e);
+                }
+            }
+            
+            // Start with table header
+            let tableContent = `
+                <thead>
+                    <tr>
+                        <th>Machine</th>
+                        <th>BMR</th>
+                        <th>Start Time</th>
+                        <th>End Time</th>
+                        <th>Duration</th>
+                        <th>Reason</th>
+                    </tr>
+                </thead>
+                <tbody>
+            `;
+            
+            // Generate table rows based on breakdown data
+            if (breakdownData && breakdownData.length > 0) {
+                for (const breakdown of breakdownData) {
+                    tableContent += `
+                        <tr>
+                            <td>${breakdown.machine_name || 'N/A'}</td>
+                            <td>${breakdown.batch_number || 'N/A'}</td>
+                            <td>${breakdown.start_time || 'N/A'}</td>
+                            <td>${breakdown.end_time || 'Ongoing'}</td>
+                            <td>${breakdown.duration || 'N/A'}</td>
+                            <td>${breakdown.reason || 'No reason provided'}</td>
+                        </tr>
+                    `;
+                }
+            } else {
+                tableContent += `
+                    <tr>
+                        <td colspan="6" class="text-center">No recent breakdowns</td>
+                    </tr>
+                `;
+            }
+            
+            tableContent += '</tbody>';
+            
+            // Create complete content with header and responsive wrapper
+            let content = `
+                <div class="mb-3">
+                    <h6>Recent Breakdowns (Last 30 Days)</h6>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        ${tableContent}
+                    </table>
+                </div>
+            `;
+            
+            showMachineModal('Breakdown Report', content);
+        } catch (error) {
+            console.error('Error showing breakdown report:', error);
+            alert('Failed to show the breakdown report. Please try again.');
+        }
+    };
+
+    window.showChangeoverReport = function() {
+        console.log('Showing changeover report...');
+        try {
+            // Generate changeover report content dynamically
+            const changeoverDataElement = document.querySelector('[data-changeover-data]');
+            let changeoverData = [];
+            
+            if (changeoverDataElement) {
+                try {
+                    changeoverData = JSON.parse(changeoverDataElement.textContent);
+                    console.log('Parsed changeover data:', changeoverData);
+                } catch (e) {
+                    console.warn('Failed to parse changeover data JSON', e);
+                }
+            }
+            
+            // Start with table header
+            let tableContent = `
+                <thead>
+                    <tr>
+                        <th>Machine</th>
+                        <th>From Product</th>
+                        <th>To Product</th>
+                        <th>Start Time</th>
+                        <th>End Time</th>
+                        <th>Duration</th>
+                    </tr>
+                </thead>
+                <tbody>
+            `;
+            
+            // Generate table rows based on changeover data
+            if (changeoverData && changeoverData.length > 0) {
+                for (const changeover of changeoverData) {
+                    tableContent += `
+                        <tr>
+                            <td>${changeover.machine_name || 'N/A'}</td>
+                            <td>${changeover.from_product || 'N/A'}</td>
+                            <td>${changeover.to_product || 'N/A'}</td>
+                            <td>${changeover.start_time || 'N/A'}</td>
+                            <td>${changeover.end_time || 'Ongoing'}</td>
+                            <td>${changeover.duration || 'N/A'}</td>
+                        </tr>
+                    `;
+                }
+            } else {
+                tableContent += `
+                    <tr>
+                        <td colspan="6" class="text-center">No recent changeovers</td>
+                    </tr>
+                `;
+            }
+            
+            tableContent += '</tbody>';
+            
+            // Create complete content with header and responsive wrapper
+            let content = `
+                <div class="mb-3">
+                    <h6>Recent Changeovers (Last 30 Days)</h6>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        ${tableContent}
+                    </table>
+                </div>
+            `;
+            
+            showMachineModal('Changeover Report', content);
+        } catch (error) {
+            console.error('Error showing changeover report:', error);
+            alert('Failed to show the changeover report. Please try again.');
+        }
+    };
+});
+
+function showMachineModal(title, content) {
+    console.log('Showing modal with title:', title);
+    
+    // Bootstrap check and initialization
+    function ensureBootstrapLoaded(callback) {
+        if (typeof bootstrap === 'undefined' || typeof bootstrap.Modal === 'undefined') {
+            console.log('Bootstrap not found, attempting to load it');
+            
+            // Check if we already added a script tag but it hasn't loaded yet
+            const existingScript = document.querySelector('script[src*="bootstrap.bundle.min.js"]');
+            if (existingScript) {
+                console.log('Bootstrap script already loading, waiting for it...');
+                existingScript.addEventListener('load', callback);
+                return;
+            }
+            
+            // Add new script tag
+            const script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js';
+            script.integrity = 'sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL';
+            script.crossOrigin = 'anonymous';
+            document.head.appendChild(script);
+            
+            script.onload = function() {
+                console.log('Bootstrap loaded successfully');
+                callback();
+            };
+            
+            script.onerror = function() {
+                console.error('Failed to load Bootstrap');
+                alert('Could not load Bootstrap. Please check your internet connection and try again.');
+            };
+        } else {
+            callback();
+        }
+    }
+    
+    ensureBootstrapLoaded(function() {
+        createAndShowModal();
+    });
+    
+    function createAndShowModal() {
+        // Remove existing modal if any
+        const existingModal = document.getElementById('machineModal');
+        if (existingModal) {
+            console.log('Removing existing modal');
+            existingModal.remove();
+        }
+        
+        // Create modal HTML
+        const modalHtml = `
+            <div class="modal fade" id="machineModal" tabindex="-1" aria-labelledby="modalTitle" aria-hidden="true">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="modalTitle">${title}</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            ${content}
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Add modal to body
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        
+        try {
+            // Show modal
+            console.log('Creating Bootstrap modal...');
+            const modalEl = document.getElementById('machineModal');
+            const modal = new bootstrap.Modal(modalEl);
+            console.log('Showing Bootstrap modal...');
+            modal.show();
+            
+            // Clean up when modal is hidden
+            modalEl.addEventListener('hidden.bs.modal', function() {
+                console.log('Modal hidden, removing from DOM');
+                modalEl.remove();
+            });
+        } catch (error) {
+            console.error('Error showing modal:', error, error.stack);
+            alert('Could not show the report. Please try refreshing the page.');
+        }
+    }
+}
+
+// Simple log function for debugging
+function logClick(message) {
+    console.log(`Card clicked: ${message}`);
+}
+
+// Chart initialization script - properly placed in script block
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Chart initialization script loaded');
     
     // Chart data - direct embedding
     const productData = {
@@ -262,11 +720,13 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 </script>
+
 <style>
-    /* Main layout */
+    /* Main layout styles */
     .dashboard-container {
         display: flex;
         min-height: calc(100vh - 56px);
+        overflow: hidden; /* Prevent horizontal scroll */
     }
     
     .sidebar {
@@ -286,12 +746,15 @@ document.addEventListener('DOMContentLoaded', function() {
     
     .content-area {
         flex: 1;
-        margin-left: 250px;
-        padding: 20px;
+        margin-left: 280px; /* Match sidebar width exactly */
+        padding: 30px; /* Increase padding for better spacing */
         background-color: #f8f9fa;
         min-height: calc(100vh - 56px);
         overflow-y: auto;
         transition: all 0.3s ease;
+        /* Ensure content doesn't get cut off */
+        box-sizing: border-box;
+        width: calc(100% - 280px);
     }
     
     /* Mobile responsiveness */
@@ -500,9 +963,29 @@ document.addEventListener('DOMContentLoaded', function() {
     .dashboard-header {
         background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
         color: white;
-        padding: 20px;
+        padding: 25px 30px; /* Increase padding for better spacing */
         border-radius: 15px;
         margin-bottom: 30px;
+        margin-top: 10px; /* Add top margin for better spacing */
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        /* Ensure header text is never cut off */
+        width: 100%;
+        box-sizing: border-box;
+        min-width: 0; /* Allow text to wrap if needed */
+    }
+    
+    .dashboard-header h1 {
+        margin-bottom: 10px;
+        font-weight: 600;
+        font-size: 2.5rem; /* Ensure readable size */
+        line-height: 1.2;
+    }
+    
+    .dashboard-header p {
+        margin-bottom: 0;
+        opacity: 0.9;
+        font-size: 1.1rem;
+        line-height: 1.4;
     }
     
     .action-button {
@@ -737,122 +1220,56 @@ document.addEventListener('DOMContentLoaded', function() {
 {% endblock %}
 
 {% block content %}
-<div class="dashboard-container">
-    <!-- Sidebar with deep blue color -->
-    <div class="sidebar" style="background-color: #1a365d;">
-        <div class="sidebar-header">
-            <h4>KPI Admin</h4>
-        </div>
-        
-        <div class="sidebar-section">Main</div>
-        <ul class="sidebar-menu">
-            <li>
-                <a href="{% url 'dashboards:admin_dashboard' %}" class="active">
-                    <i class="fas fa-tachometer-alt"></i> Dashboard
-                </a>
-            </li>
-            <li>
-                <a href="{% url 'reports:timeline_list' %}">
-                    <i class="fas fa-project-diagram"></i> Enhanced Timeline
-                </a>
-            </li>
-            <li>
-                <a href="{% url 'dashboards:admin_timeline' %}">
-                    <i class="fas fa-clock"></i> Legacy Timeline
-                </a>
-            </li>
-            <li>
-                <a href="{% url 'dashboards:admin_fgs_monitor' %}">
-                    <i class="fas fa-boxes"></i> FGS Monitor
-                </a>
-            </li>
-        </ul>
-        
-        <div class="sidebar-section">Production</div>
-        <ul class="sidebar-menu">
-            <li>
-                <a href="{% url 'bmr:list' %}">
-                    <i class="fas fa-file-medical"></i> BMR Management
-                </a>
-            </li>
-            <li>
-                <a href="#">
-                    <i class="fas fa-tasks"></i> Active Phases
-                </a>
-            </li>
-        </ul>
-        
-        <div class="sidebar-section">Reports</div>
-        <ul class="sidebar-menu">
-            <li>
-                <a href="{% url 'reports:timeline_list' %}">
-                    <i class="fas fa-project-diagram"></i> Visual Timeline
-                </a>
-            </li>
-            <li>
-                <a href="{% url 'reports:comments_report' %}">
-                    <i class="fas fa-comments"></i> Comments Report
-                </a>
-            </li>
-            <li>
-                <a href="{% url 'reports:export_comments_csv' %}">
-                    <i class="fas fa-file-csv"></i> Export CSV
-                </a>
-            </li>
-            <li>
-                <a href="{% url 'reports:export_comments_word' %}">
-                    <i class="fas fa-file-word"></i> Export Word
-                </a>
-            </li>
-            <li>
-                <a href="{% url 'reports:export_comments_excel' %}">
-                    <i class="fas fa-file-excel"></i> Export Excel
-                </a>
-            </li>
-        </ul>
-        
-        <div class="sidebar-section">Machine Management</div>
-        <ul class="sidebar-menu">
-            <li>
-                <a href="#" onclick="showMachineOverview()">
-                    <i class="fas fa-cogs"></i> Machine Overview
-                </a>
-            </li>
-            <li>
-                <a href="#" onclick="showBreakdownReport()">
-                    <i class="fas fa-exclamation-triangle"></i> Breakdown Report
-                </a>
-            </li>
-            <li>
-                <a href="#" onclick="showChangeoverReport()">
-                    <i class="fas fa-exchange-alt"></i> Changeover Report
-                </a>
-            </li>
-            <li>
-                <a href="{% url 'admin:workflow_machine_changelist' %}">
-                    <i class="fas fa-tools"></i> Manage Machines
-                </a>
-            </li>
-        </ul>
-        
-        <div class="sidebar-section">Admin</div>
-        <ul class="sidebar-menu">
-            <li>
-                <a href="{% url 'admin:index' %}">
-                    <i class="fas fa-cog"></i> Admin Panel
-                </a>
-            </li>
-        </ul>
-    </div>
+<!-- Hidden Data Elements for Machine Management Functions -->
+<div style="display: none;" id="machine-data-container">
+    <script type="application/json" data-machine-stats>{{ machine_stats|safe }}</script>
+    <!-- Store all machines as a separate data element -->
+    <script type="application/json" data-all-machines>[
+        {% for machine in all_machines %}
+        {
+            "id": {{ machine.id }},
+            "name": "{{ machine.name|default:'N/A' }}",
+            "machine_type": "{{ machine.machine_type|default:'N/A' }}",
+            "is_active": {% if machine.is_active %}true{% else %}false{% endif %}
+        }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ]</script>
     
-    <div class="content-area">
-        <!-- Page Header -->
-        <div class="dashboard-header">
-            <h1>Admin Dashboard</h1>
-            <p>Kampala Pharmaceutical Industries - Operations Overview</p>
-        </div>
+    <!-- Container for dynamic machine modal -->
+    <div id="machineModalContainer"></div>
+    <script type="application/json" data-breakdown-data>[
+        {% for breakdown in recent_breakdowns %}
+        {
+            "machine_name": "{{ breakdown.machine_used.name|default:'N/A' }}",
+            "batch_number": "{{ breakdown.bmr.batch_number }}",
+            "start_time": "{{ breakdown.breakdown_start_time|date:'M d, H:i' }}",
+            "end_time": "{% if breakdown.breakdown_end_time %}{{ breakdown.breakdown_end_time|date:'M d, H:i' }}{% else %}Ongoing{% endif %}",
+            "duration": "{% if breakdown.breakdown_end_time %}{{ breakdown.breakdown_duration_minutes|default:'N/A' }} min{% else %}Ongoing{% endif %}",
+            "reason": "{{ breakdown.breakdown_reason|default:'No reason provided' }}"
+        }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ]</script>
+    <script type="application/json" data-changeover-data>[
+        {% for changeover in recent_changeovers %}
+        {
+            "machine_name": "{{ changeover.machine_used.name|default:'N/A' }}",
+            "from_product": "{{ changeover.from_product|default:'N/A' }}",
+            "to_product": "{{ changeover.to_product|default:'N/A' }}",
+            "start_time": "{{ changeover.changeover_start_time|date:'M d, H:i' }}",
+            "end_time": "{% if changeover.changeover_end_time %}{{ changeover.changeover_end_time|date:'M d, H:i' }}{% else %}Ongoing{% endif %}",
+            "duration": "{% if changeover.changeover_end_time %}{{ changeover.changeover_duration_minutes|default:'N/A' }} min{% else %}Ongoing{% endif %}"
+        }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ]</script>
+</div>
 
-        <!-- Key Metrics Section -->
+<!-- Page Header -->
+<div class="dashboard-header">
+    <h1>Admin Dashboard</h1>
+    <p>Kampala Pharmaceutical Industries - Operations Overview</p>
+</div>
+
+<!-- Key Metrics Section -->
         <div class="row mb-4">
             <div class="col-lg-3 col-md-6 mb-3">
                 <div class="stats-card">
@@ -886,23 +1303,24 @@ document.addEventListener('DOMContentLoaded', function() {
                 <h3 class="section-title">Machine Management</h3>
             </div>
             <div class="col-lg-3 col-md-6 mb-3">
-                <div class="stats-card bg-warning text-dark" onclick="showBreakdownReport()" style="cursor: pointer;">
+                <div class="stats-card bg-warning text-dark" onclick="showBreakdownReport(); logClick('Breakdown Report');" style="cursor: pointer; transition: all 0.2s;">
                     <div class="metric-value">{{ total_breakdowns }}</div>
                     <div class="metric-label">Total Breakdowns</div>
-                    <small class="text-muted">Today: {{ breakdowns_today }}</small>
+                    <small class="text-muted">Today: {{ breakdowns_today }} <i class="fas fa-search ms-1"></i></small>
                 </div>
             </div>
             <div class="col-lg-3 col-md-6 mb-3">
-                <div class="stats-card bg-info text-white" onclick="showChangeoverReport()" style="cursor: pointer;">
+                <div class="stats-card bg-info text-white" onclick="showChangeoverReport(); logClick('Changeover Report');" style="cursor: pointer; transition: all 0.2s;">
                     <div class="metric-value">{{ total_changeovers }}</div>
                     <div class="metric-label">Total Changeovers</div>
-                    <small class="text-muted">Today: {{ changeovers_today }}</small>
+                    <small class="text-muted">Today: {{ changeovers_today }} <i class="fas fa-search ms-1"></i></small>
                 </div>
             </div>
             <div class="col-lg-3 col-md-6 mb-3">
-                <div class="stats-card bg-success text-white" onclick="showMachineOverview()">
+                <div class="stats-card bg-success text-white" onclick="showMachineOverview(); logClick('Machine Overview');" style="cursor: pointer; transition: all 0.2s;">
                     <div class="metric-value">{{ all_machines.count }}</div>
                     <div class="metric-label">Active Machines</div>
+                    <small class="text-muted"><i class="fas fa-search ms-1"></i> View details</small>
                 </div>
             </div>
             <div class="col-lg-3 col-md-6 mb-3">
@@ -1518,181 +1936,201 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
         
+        // Machine Overview function is defined at the top of the file
+        console.log('Using the showMachineOverview function defined at the top of the file');
+                        
+                        content += `
+                                    </tbody>
+                                </table>
+                            </div>
+                        `;
+                                    <th>Current Usage</th>
+                                    <th>Usage Count</th>
+                                    <th>Breakdowns</th>
+                                    <th>Changeovers</th>
+                                    <th>Breakdown Rate</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${tableRows}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+                
+                // Show the modal
+                showMachineModal('Machine Overview', modalContent);
+                
+            } catch (error) {
+                console.error('Error showing machine overview:', error);
+                
+                // Use direct API fetch approach instead of template variables
+                console.log("Using API approach to fetch machine data");
+                
+                const modalContent = `
+                    <div class="alert alert-info mb-3">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Loading machine data directly from the system...
+                    </div>
+                    <div id="machineTableContainer">
+                        <div class="d-flex justify-content-center">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                // Show the modal first with a loading indicator
+                showMachineModal('Machine Overview', modalContent);
+                
+                // Then fetch the machine data from our API
+                setTimeout(() => {
+                    fetch('/dashboards/api/machine-overview/')
+                        .then(response => {
+                            if (!response.ok) {
+                                throw new Error('Network response was not ok: ' + response.status);
+                            }
+                            return response.json();
+                        })
+                        .then(data => {
+                            console.log("API data received:", data);
+                            
+                            let tableHtml = `
+                                <div class="table-responsive">
+                                    <table class="table table-striped">
+                                        <thead>
+                                            <tr>
+                                                <th>Machine Name</th>
+                                                <th>Type</th>
+                                                <th>Status</th>
+                                                <th>Current Usage</th>
+                                                <th>Usage Count</th>
+                                                <th>Breakdowns</th>
+                                                <th>Changeovers</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                            `;
+                            
+                            if (data.machines && data.machines.length > 0) {
+                                data.machines.forEach(machine => {
+                                    tableHtml += `
+                                        <tr>
+                                            <td>${machine.name || 'N/A'}</td>
+                                            <td>${machine.machine_type ? machine.machine_type.charAt(0).toUpperCase() + machine.machine_type.slice(1) : 'N/A'}</td>
+                                            <td>${machine.is_active ? 
+                                                '<span class="badge bg-success">Active</span>' : 
+                                                '<span class="badge bg-danger">Inactive</span>'}
+                                            </td>
+                                            <td>${machine.current_usage !== 'Not in use' ? 
+                                                `<span class="badge bg-warning">In use (${machine.current_usage})</span>` : 
+                                                '<span class="badge bg-secondary">Not in use</span>'}
+                                            </td>
+                                            <td>${machine.usage_count || 0}</td>
+                                            <td>${machine.breakdown_count || 0}</td>
+                                            <td>${machine.changeover_count || 0}</td>
+                                        </tr>
+                                    `;
+                                });
+                            } else {
+                                tableHtml += '<tr><td colspan="7" class="text-center">No machines found in the system</td></tr>';
+                            }
+                            
+                            tableHtml += `
+                                        </tbody>
+                                    </table>
+                                </div>
+                            `;
+                            
+                            document.getElementById('machineTableContainer').innerHTML = tableHtml;
+                        })
+                        .catch(error => {
+                            console.error('Error fetching machine data:', error);
+                            document.getElementById('machineTableContainer').innerHTML = `
+                                <div class="alert alert-danger">
+                                    <i class="fas fa-exclamation-circle me-2"></i>
+                                    Failed to load machine data: ${error.message}
+                                </div>
+                            `;
+                        });
+                }, 500); // Small delay to ensure modal is shown first
+                
+                showMachineModal('Machine Overview', modalContent);
+            }
+        };
+        
         console.log('Enhanced dropdown functionality activated');
     } else {
         console.error('Dropdown toggle not found');
     }
 });
 
-// Machine Management Functions
-function showMachineOverview() {
-    const modalContent = `
-        <div class="table-responsive">
-            <table class="table table-striped">
-                <thead>
-                    <tr>
-                        <th>Machine Name</th>
-                        <th>Type</th>
-                        <th>Status</th>
-                        <th>Usage Count</th>
-                        <th>Breakdowns</th>
-                        <th>Changeovers</th>
-                        <th>Breakdown Rate</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for machine_id, stats in machine_stats.items %}
-                    <tr>
-                        <td>{{ stats.machine.name }}</td>
-                        <td>{{ stats.machine.machine_type|title }}</td>
-                        <td>
-                            {% if stats.machine.is_active %}
-                                <span class="badge bg-success">Active</span>
-                            {% else %}
-                                <span class="badge bg-danger">Inactive</span>
-                            {% endif %}
-                        </td>
-                        <td>{{ stats.usage_count }}</td>
-                        <td>{{ stats.breakdown_count }}</td>
-                        <td>{{ stats.changeover_count }}</td>
-                        <td>{{ stats.breakdown_rate }}%</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    `;
-    showMachineModal('Machine Overview', modalContent);
-}
-
-function showBreakdownReport() {
-    const modalContent = `
-        <div class="mb-3">
-            <h6>Recent Breakdowns (Last 30 Days)</h6>
-        </div>
-        <div class="table-responsive">
-            <table class="table table-striped">
-                <thead>
-                    <tr>
-                        <th>Machine</th>
-                        <th>BMR</th>
-                        <th>Start Time</th>
-                        <th>End Time</th>
-                        <th>Duration</th>
-                        <th>Reason</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for breakdown in recent_breakdowns %}
-                    <tr>
-                        <td>{{ breakdown.machine_used.name|default:"N/A" }}</td>
-                        <td>{{ breakdown.bmr.batch_number }}</td>
-                        <td>{{ breakdown.breakdown_start_time|date:"M d, H:i" }}</td>
-                        <td>{{ breakdown.breakdown_end_time|date:"M d, H:i"|default:"Ongoing" }}</td>
-                        <td>
-                            {% if breakdown.breakdown_end_time %}
-                                {{ breakdown.breakdown_duration_minutes|default:"N/A" }} min
-                            {% else %}
-                                Ongoing
-                            {% endif %}
-                        </td>
-                        <td>{{ breakdown.breakdown_reason|default:"No reason provided" }}</td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="6" class="text-center text-muted">No recent breakdowns</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    `;
-    showMachineModal('Breakdown Report', modalContent);
-}
-
-function showChangeoverReport() {
-    const modalContent = `
-        <div class="mb-3">
-            <h6>Recent Changeovers (Last 30 Days)</h6>
-        </div>
-        <div class="table-responsive">
-            <table class="table table-striped">
-                <thead>
-                    <tr>
-                        <th>Machine</th>
-                        <th>BMR</th>
-                        <th>Start Time</th>
-                        <th>End Time</th>
-                        <th>Duration</th>
-                        <th>Details</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for changeover in recent_changeovers %}
-                    <tr>
-                        <td>{{ changeover.machine_used.name|default:"N/A" }}</td>
-                        <td>{{ changeover.bmr.batch_number }}</td>
-                        <td>{{ changeover.changeover_start_time|date:"M d, H:i" }}</td>
-                        <td>{{ changeover.changeover_end_time|date:"M d, H:i"|default:"Ongoing" }}</td>
-                        <td>
-                            {% if changeover.changeover_end_time %}
-                                {{ changeover.changeover_duration_minutes|default:"N/A" }} min
-                            {% else %}
-                                Ongoing
-                            {% endif %}
-                        </td>
-                        <td>{{ changeover.changeover_reason|default:"No details provided" }}</td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="6" class="text-center text-muted">No recent changeovers</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    `;
-    showMachineModal('Changeover Report', modalContent);
-}
-
-function showMachineModal(title, content) {
-    // Remove existing modal if any
-    const existingModal = document.getElementById('machineModal');
-    if (existingModal) {
-        existingModal.remove();
-    }
-    
-    // Create modal HTML
-    const modalHtml = `
-        <div class="modal fade" id="machineModal" tabindex="-1">
-            <div class="modal-dialog modal-lg">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">${title}</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        ${content}
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-    
-    // Add modal to body
-    document.body.insertAdjacentHTML('beforeend', modalHtml);
-    
-    // Show modal
-    const modal = new bootstrap.Modal(document.getElementById('machineModal'));
-    modal.show();
-    
-    // Clean up when modal is hidden
-    document.getElementById('machineModal').addEventListener('hidden.bs.modal', function() {
-        this.remove();
-    });
-}
+// All necessary JavaScript functions have been defined
 </script>
+
+<!-- Machine debugging script -->
+<script>
+// Fix for the admin dropdown
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize Bootstrap dropdowns
+    console.log('Initializing dropdown fixes...');
+    
+    // Dropdown initialization is now handled by dropdown-fix.js
+    console.log('Deferring dropdown initialization to dropdown-fix.js');
+    
+    // Debug script for machine data
+    console.log('Machine data debugging script loaded');
+    
+    // Find the machine data element
+    const machineStatsElement = document.querySelector('[data-machine-stats]');
+    
+    if (machineStatsElement) {
+        console.log('Found machine stats element');
+        try {
+            // Get the raw data and check if it's valid JSON
+            const rawData = machineStatsElement.textContent.trim();
+            console.log('Machine stats raw data length:', rawData.length);
+            console.log('First 50 chars:', rawData.substring(0, 50));
+            
+            // Try to parse the JSON
+            try {
+                const parsedData = JSON.parse(rawData);
+                console.log('Successfully parsed machine data JSON');
+                console.log('Number of machines:', Object.keys(parsedData).length);
+                console.log('Machine IDs:', Object.keys(parsedData));
+                
+                // Print information about each machine
+                for (const machineId in parsedData) {
+                    const machine = parsedData[machineId].machine;
+                    console.log(`Machine ID ${machineId}: ${machine.name}, Type: ${machine.machine_type}, Active: ${machine.is_active}`);
+                }
+            } catch (parseError) {
+                console.error('Error parsing machine data:', parseError);
+                console.log('Raw data starting characters:', JSON.stringify(rawData.substring(0, 20)));
+                console.log('Raw data ending characters:', JSON.stringify(rawData.substring(rawData.length - 20)));
+                
+                // Try to identify the JSON error position
+                const errorMatch = parseError.message.match(/position (\d+)/);
+                if (errorMatch && errorMatch[1]) {
+                    const errorPos = parseInt(errorMatch[1]);
+                    console.error(`Error at position ${errorPos}`);
+                    console.error('Characters around error:', JSON.stringify(rawData.substring(Math.max(0, errorPos - 10), errorPos + 10)));
+                }
+            }
+        } catch (error) {
+            console.error('General error accessing machine data:', error);
+        }
+    } else {
+        console.error('Machine stats element not found');
+        
+        // Check if any other data-* elements exist
+        const dataElements = document.querySelectorAll('[data-*]');
+        console.log('Found', dataElements.length, 'data-* elements');
+    }
+});
+</script>
+
+<!-- Add specialized dropdown fix script -->
+<script src="{% static 'js/dropdown-fix.js' %}"></script>
 {% endblock %}

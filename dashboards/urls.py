@@ -1,11 +1,15 @@
 from django.urls import path
 from . import views
+from . import views_machine_api
 from django.views.generic.base import RedirectView
 
 app_name = 'dashboards'
 
 urlpatterns = [
     path('', views.dashboard_home, name='dashboard_home'),
+    
+    # API endpoints
+    path('api/machine-overview/', views_machine_api.machine_overview_api, name='machine_overview_api'),
     
     # QA Dashboard
     path('qa/', views.qa_dashboard, name='qa_dashboard'),

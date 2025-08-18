@@ -1,125 +1,10 @@
-{% extends 'dashboards/dashboard_base.html' %}
+{% extends 'dashboards/admin_base.html' %}
 {% load static %}
 
 {% block title %}BMR Timeline Tracking - Kampala Pharmaceutical Industries{% endblock %}
 
 {% block extra_css %}
 <style>
-    /* Main layout */
-    .dashboard-container {
-        display: flex;
-        min-height: calc(100vh - 56px);
-    }
-    
-    .sidebar {
-        width: 280px;
-        background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
-        padding: 20px 0;
-        color: white;
-        position: fixed;
-        height: calc(100vh - 56px);
-        overflow-y: auto;
-        z-index: 100;
-        box-shadow: 2px 0 10px rgba(0,0,0,0.1);
-        transition: all 0.3s ease;
-    }
-    
-    .content-area {
-        flex: 1;
-        margin-left: 280px;
-        padding: 20px;
-        background-color: #f8f9fa;
-        transition: all 0.3s ease;
-    }
-    
-    /* Mobile responsiveness */
-    @media (max-width: 992px) {
-        .sidebar {
-            transform: translateX(-100%);
-            position: fixed;
-            z-index: 1000;
-        }
-        
-        .sidebar.active {
-            transform: translateX(0);
-        }
-        
-        .content-area {
-            margin-left: 0;
-            width: 100%;
-        }
-        
-        .toggle-sidebar {
-            display: block !important;
-        }
-    }
-    
-    .toggle-sidebar {
-        display: none;
-        position: fixed;
-        bottom: 20px;
-        right: 20px;
-        background: #764ba2;
-        color: white;
-        width: 50px;
-        height: 50px;
-        border-radius: 50%;
-        text-align: center;
-        line-height: 50px;
-        font-size: 20px;
-        box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-        cursor: pointer;
-        z-index: 1001;
-    }
-    
-    /* Sidebar elements */
-    .sidebar-header {
-        padding: 15px 20px;
-        border-bottom: 1px solid rgba(255,255,255,0.1);
-        margin-bottom: 15px;
-    }
-    
-    .sidebar-menu {
-        list-style: none;
-        padding: 0;
-        margin: 0;
-    }
-    
-    .sidebar-menu li {
-        margin: 5px 0;
-    }
-    
-    .sidebar-menu a {
-        color: rgba(255,255,255,0.8);
-        text-decoration: none;
-        padding: 12px 20px;
-        display: block;
-        transition: all 0.3s ease;
-        border-left: 3px solid transparent;
-    }
-    
-    .sidebar-menu a:hover, 
-    .sidebar-menu a.active {
-        background: rgba(255,255,255,0.1);
-        color: white;
-        border-left: 3px solid white;
-    }
-    
-    .sidebar-menu i {
-        margin-right: 10px;
-        width: 20px;
-        text-align: center;
-    }
-    
-    .sidebar-section {
-        padding: 10px 20px;
-        margin-top: 20px;
-        color: rgba(255,255,255,0.5);
-        font-size: 0.8rem;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-    }
-    
     /* Timeline styles */
     .timeline-header {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -278,96 +163,30 @@
 {% endblock %}
 
 {% block content %}
-<div class="dashboard-container">
-    <!-- Sidebar -->
-    <div class="sidebar">
-        <div class="sidebar-header">
-            <h5 class="mb-0">
-                <i class="fas fa-timeline me-2"></i>
-                BMR Timeline
-            </h5>
-            <small class="d-block mt-1 text-white-50">Production Tracking</small>
+<!-- Page Header -->
+<div class="timeline-header">
+    <div class="text-center">
+        <div>
+            <h2 class="mb-0">BMR Timeline Tracking</h2>
+            <p class="mb-0">Complete production workflow monitoring from QA to FGS</p>
         </div>
-        
-        <ul class="sidebar-menu">
-            <li>
-                <a href="{% url 'dashboards:admin_dashboard' %}">
-                    <i class="fas fa-chart-line"></i> Dashboard Overview
-                </a>
-            </li>
-            <li>
-                <a href="{% url 'dashboards:admin_timeline' %}" class="active">
-                    <i class="fas fa-timeline"></i> BMR Timeline Tracking
-                </a>
-            </li>
-            <li>
-                <a href="{% url 'dashboards:admin_fgs_monitor' %}">
-                    <i class="fas fa-warehouse"></i> FGS Store Monitor
-                </a>
-            </li>
-            
-            <div class="sidebar-section">Production Management</div>
-            <li>
-                <a href="{% url 'bmr:list' %}">
-                    <i class="fas fa-file-medical"></i> BMR Management
-                </a>
-            </li>
-            <li>
-                <a href="{% url 'dashboards:export_timeline_data' %}?format=excel">
-                    <i class="fas fa-file-excel"></i> Export Timeline (Excel)
-                </a>
-            </li>
-            <li>
-                <a href="{% url 'dashboards:export_timeline_data' %}?format=csv">
-                    <i class="fas fa-file-csv"></i> Export Timeline (CSV)
-                </a>
-            </li>
-            
-            <div class="sidebar-section">System Management</div>
-            <li>
-                <a href="{% url 'admin:index' %}">
-                    <i class="fas fa-cogs"></i> System Administration
-                </a>
-            </li>
-            <li>
-                <a href="{% url 'admin:accounts_customuser_changelist' %}">
-                    <i class="fas fa-users"></i> User Management
-                </a>
-            </li>
-            <li>
-                <a href="{% url 'admin:products_product_changelist' %}">
-                    <i class="fas fa-pills"></i> Product Management
-                </a>
-            </li>
-        </ul>
+        <div class="mt-3">
+            <button onclick="exportData('csv')" class="export-btn">
+                <i class="fas fa-file-csv me-2"></i>Export CSV
+            </button>
+            <button onclick="exportData('excel')" class="export-btn">
+                <i class="fas fa-file-excel me-2"></i>Export Excel
+            </button>
+        </div>
     </div>
-    
-    <!-- Content Area -->
-    <div class="content-area">
-        <!-- Page Header -->
-        <div class="timeline-header">
-            <div class="text-center">
-                <div>
-                    <h2 class="mb-0">BMR Timeline Tracking</h2>
-                    <p class="mb-0">Complete production workflow monitoring from QA to FGS</p>
-                </div>
-                <div class="mt-3">
-                    <button onclick="exportData('csv')" class="export-btn">
-                        <i class="fas fa-file-csv me-2"></i>Export CSV
-                    </button>
-                    <button onclick="exportData('excel')" class="export-btn">
-                        <i class="fas fa-file-excel me-2"></i>Export Excel
-                    </button>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Summary Section -->
-        <div class="row mb-4">
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-header bg-primary text-white">
-                        <h3 class="mb-0">
+</div>
+
+<!-- Summary Section -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h3 class="mb-0">
                             <i class="fas fa-chart-line me-2"></i>Production Overview
                         </h3>
                     </div>

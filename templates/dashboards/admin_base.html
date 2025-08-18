@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Admin Dashboard - Kampala Pharmaceutical Industries{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <!-- Custom fixes -->
+    {% load static %}
+    <link href="{% static 'css/custom-fixes.css' %}" rel="stylesheet">
+    <style>
+        .navbar-brand {
+            font-weight: bold;
+            color: white !important;
+        }
+        .dashboard-body {
+            background-color: #f8f9fa;
+            min-height: 100vh;
+        }
+        
+        /* Unified Admin Layout */
+        .admin-layout {
+            display: flex;
+            min-height: calc(100vh - 56px); /* Account for navbar height */
+        }
+        
+        .admin-sidebar {
+            width: 280px;
+            background: #1a365d;
+            padding: 20px 0;
+            color: white;
+            position: fixed;
+            top: 56px; /* Account for navbar height */
+            left: 0;
+            height: calc(100vh - 56px);
+            overflow-y: auto;
+            z-index: 1030;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+        
+        .admin-content {
+            flex: 1;
+            margin-left: 280px;
+            padding: 30px;
+            background-color: #f8f9fa;
+            min-height: calc(100vh - 56px);
+            overflow-y: auto;
+            transition: all 0.3s ease;
+            box-sizing: border-box;
+            width: calc(100% - 280px);
+        }
+        
+        /* Sidebar styling */
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .sidebar-header h4 {
+            color: white;
+            margin: 0;
+            font-weight: 600;
+        }
+        
+        .sidebar-section {
+            padding: 10px 20px 5px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: rgba(255,255,255,0.5);
+            letter-spacing: 1px;
+            margin-top: 20px;
+        }
+        
+        .sidebar-menu {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        
+        .sidebar-menu li {
+            margin: 0;
+        }
+        
+        .sidebar-menu a {
+            display: block;
+            padding: 12px 20px;
+            color: rgba(255,255,255,0.8);
+            text-decoration: none;
+            transition: all 0.3s ease;
+            border-left: 3px solid transparent;
+        }
+        
+        .sidebar-menu a:hover, 
+        .sidebar-menu a.active {
+            background-color: rgba(255,255,255,0.1);
+            color: white;
+            border-left-color: #4facfe;
+        }
+        
+        .sidebar-menu i {
+            width: 20px;
+            margin-right: 10px;
+            text-align: center;
+        }
+        
+        /* Collapsible submenu styles */
+        .sidebar-submenu {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+            background: rgba(255,255,255,0.05);
+        }
+        
+        .sidebar-submenu.show {
+            max-height: 500px; /* Adjust based on content */
+        }
+        
+        .sidebar-submenu li {
+            margin: 0;
+        }
+        
+        .sidebar-submenu a {
+            color: rgba(255,255,255,0.7);
+            text-decoration: none;
+            padding: 8px 20px 8px 50px;
+            display: block;
+            transition: all 0.3s ease;
+            border-left: 3px solid transparent;
+            font-size: 0.9rem;
+        }
+        
+        .sidebar-submenu a:hover,
+        .sidebar-submenu a.active {
+            background: rgba(255,255,255,0.08);
+            color: white;
+            border-left: 3px solid #4facfe;
+        }
+        
+        .dropdown-toggle::after {
+            content: '\f107';
+            font-family: 'Font Awesome 6 Free';
+            font-weight: 900;
+            float: right;
+            transition: transform 0.3s ease;
+        }
+        
+        .dropdown-toggle.collapsed::after {
+            transform: rotate(-90deg);
+        }
+        
+        /* Dashboard header */
+        .dashboard-header {
+            background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+            color: white;
+            padding: 25px 30px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            margin-top: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            width: 100%;
+            box-sizing: border-box;
+            min-width: 0;
+        }
+        
+        .dashboard-header h1 {
+            margin-bottom: 10px;
+            font-weight: 600;
+            font-size: 2.5rem;
+            line-height: 1.2;
+        }
+        
+        .dashboard-header p {
+            margin-bottom: 0;
+            opacity: 0.9;
+            font-size: 1.1rem;
+            line-height: 1.4;
+        }
+        
+        /* Card styling */
+        .card {
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 15px rgba(0,0,0,0.2);
+        }
+        
+        /* Stats cards */
+        .stats-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-align: center;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            transition: transform 0.3s ease;
+        }
+        
+        .stats-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .metric-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        
+        .metric-label {
+            font-size: 1rem;
+            opacity: 0.9;
+        }
+        
+        .section-title {
+            color: #333;
+            font-weight: bold;
+            margin-bottom: 1.5rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid #e9ecef;
+        }
+        
+        /* Mobile responsiveness */
+        @media (max-width: 992px) {
+            .admin-sidebar {
+                transform: translateX(-100%);
+                position: fixed;
+                z-index: 1000;
+            }
+            
+            .admin-sidebar.active {
+                transform: translateX(0);
+            }
+            
+            .admin-content {
+                margin-left: 0;
+                width: 100%;
+            }
+        }
+        
+        /* Dropdown fixes */
+        .dropdown-toggle {
+            cursor: pointer !important;
+        }
+        .nav-link[data-bs-toggle="dropdown"] {
+            cursor: pointer !important;
+        }
+        .navbar .dropdown-menu {
+            z-index: 1050 !important;
+        }
+        .navbar {
+            position: relative;
+            z-index: 1030;
+        }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body class="dashboard-body">
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark" style="background-color: #0056b3;">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="{% url 'home' %}" style="color: white !important;">
+                {% load static %}
+                <img src="{% static 'Main Logo.png' %}" alt="KPI Logo" height="30" class="me-2" onerror="this.style.display='none'">
+                Kampala Pharmaceutical Industries
+            </a>
+            
+            {% if user.is_authenticated %}
+            <div class="navbar-nav ms-auto">
+                <div class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle text-white" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="fas fa-user me-1"></i>
+                        {{ user.get_full_name|default:user.username }}
+                        <span class="badge bg-secondary ms-1">{{ user.get_role_display }}</span>
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown">
+                        <li><a class="dropdown-item" href="{% url 'home' %}"><i class="fas fa-tachometer-alt me-2"></i>Dashboard</a></li>
+                        <li><a class="dropdown-item" href="{% url 'accounts:profile' %}"><i class="fas fa-user me-2"></i>Profile</a></li>
+                        {% if user.is_staff %}
+                        <li><a class="dropdown-item" href="{% url 'admin:index' %}"><i class="fas fa-cog me-2"></i>Admin Panel</a></li>
+                        {% endif %}
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="{% url 'accounts:logout' %}"><i class="fas fa-sign-out-alt me-2"></i>Logout</a></li>
+                    </ul>
+                </div>
+            </div>
+            {% else %}
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link text-white" href="{% url 'accounts:login' %}">
+                    <i class="fas fa-sign-in-alt me-1"></i>Login
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </nav>
+
+    <!-- Messages -->
+    {% if messages %}
+    <div style="max-width: 1400px; margin: 0 auto; padding: 0 2rem;">
+        <div class="row">
+            <div class="col-12">
+                {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show mt-3" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Admin Layout -->
+    <div class="admin-layout">
+        <!-- Sidebar -->
+        <div class="admin-sidebar">
+            <div class="sidebar-header">
+                <h4>KPI Admin</h4>
+            </div>
+            
+            <div class="sidebar-section">Main</div>
+            <ul class="sidebar-menu">
+                <li>
+                    <a href="{% url 'dashboards:admin_dashboard' %}" class="{% if request.resolver_match.url_name == 'admin_dashboard' %}active{% endif %}">
+                        <i class="fas fa-tachometer-alt"></i> Dashboard
+                    </a>
+                </li>
+                <li>
+                    <a href="{% url 'reports:timeline_list' %}">
+                        <i class="fas fa-project-diagram"></i> Enhanced Timeline
+                    </a>
+                </li>
+                <li>
+                    <a href="{% url 'dashboards:admin_timeline' %}" class="dropdown-toggle collapsed" data-bs-toggle="collapse" data-bs-target="#timelineSubmenu" aria-expanded="false">
+                        <i class="fas fa-clock"></i> Legacy Timeline
+                    </a>
+                    <ul class="sidebar-submenu collapse" id="timelineSubmenu">
+                        <li>
+                            <a href="{% url 'dashboards:admin_timeline' %}" class="{% if request.resolver_match.url_name == 'admin_timeline' %}active{% endif %}">
+                                <i class="fas fa-timeline"></i> BMR Timeline Tracking
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{% url 'dashboards:export_timeline_data' %}?format=excel">
+                                <i class="fas fa-file-excel"></i> Export Timeline (Excel)
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{% url 'dashboards:export_timeline_data' %}?format=csv">
+                                <i class="fas fa-file-csv"></i> Export Timeline (CSV)
+                            </a>
+                        </li>
+                    </ul>
+                </li>
+                <li>
+                    <a href="{% url 'dashboards:admin_fgs_monitor' %}" class="dropdown-toggle collapsed" data-bs-toggle="collapse" data-bs-target="#fgsSubmenu" aria-expanded="false">
+                        <i class="fas fa-boxes"></i> FGS Monitor
+                    </a>
+                    <ul class="sidebar-submenu collapse" id="fgsSubmenu">
+                        <li>
+                            <a href="{% url 'dashboards:admin_fgs_monitor' %}#analytics" class="{% if request.resolver_match.url_name == 'admin_fgs_monitor' %}active{% endif %}">
+                                <i class="fas fa-chart-line"></i> Production Analytics
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{% url 'dashboards:admin_fgs_monitor' %}#metrics" class="{% if request.resolver_match.url_name == 'admin_fgs_monitor' %}active{% endif %}">
+                                <i class="fas fa-chart-bar"></i> Storage Metrics
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{% url 'dashboards:admin_fgs_monitor' %}#workflow" class="{% if request.resolver_match.url_name == 'admin_fgs_monitor' %}active{% endif %}">
+                                <i class="fas fa-project-diagram"></i> Storage Workflow
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{% url 'dashboards:admin_fgs_monitor' %}#inventory" class="{% if request.resolver_match.url_name == 'admin_fgs_monitor' %}active{% endif %}">
+                                <i class="fas fa-warehouse"></i> Current Inventory
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{% url 'dashboards:admin_fgs_monitor' %}#releases" class="{% if request.resolver_match.url_name == 'admin_fgs_monitor' %}active{% endif %}">
+                                <i class="fas fa-shipping-fast"></i> Released Goods
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{% url 'dashboards:admin_fgs_monitor' %}#recent" class="{% if request.resolver_match.url_name == 'admin_fgs_monitor' %}active{% endif %}">
+                                <i class="fas fa-clock"></i> Recent Activity
+                            </a>
+                        </li>
+                    </ul>
+                </li>
+            </ul>
+            
+            <div class="sidebar-section">Production</div>
+            <ul class="sidebar-menu">
+                <li>
+                    <a href="{% url 'bmr:list' %}">
+                        <i class="fas fa-file-medical"></i> BMR Management
+                    </a>
+                </li>
+                <li>
+                    <a href="#">
+                        <i class="fas fa-tasks"></i> Active Phases
+                    </a>
+                </li>
+            </ul>
+            
+            <div class="sidebar-section">Reports</div>
+            <ul class="sidebar-menu">
+                <li>
+                    <a href="{% url 'reports:timeline_list' %}">
+                        <i class="fas fa-project-diagram"></i> Visual Timeline
+                    </a>
+                </li>
+                <li>
+                    <a href="{% url 'reports:comments_report' %}">
+                        <i class="fas fa-comments"></i> Comments Report
+                    </a>
+                    </li>
+                <li>
+                    <a href="{% url 'reports:export_comments_csv' %}">
+                        <i class="fas fa-file-csv"></i> Export CSV
+                    </a>
+                </li>
+                <li>
+                    <a href="{% url 'reports:export_comments_word' %}">
+                        <i class="fas fa-file-word"></i> Export Word
+                    </a>
+                </li>
+                <li>
+                    <a href="{% url 'reports:export_comments_excel' %}">
+                        <i class="fas fa-file-excel"></i> Export Excel
+                    </a>
+                </li>
+            </ul>
+            
+            <div class="sidebar-section">Machine Management</div>
+            <ul class="sidebar-menu">
+                <li>
+                    <a href="#" onclick="showMachineOverview()">
+                        <i class="fas fa-cogs"></i> Machine Overview
+                    </a>
+                </li>
+                <li>
+                    <a href="#" onclick="showBreakdownReport()">
+                        <i class="fas fa-exclamation-triangle"></i> Breakdown Report
+                    </a>
+                </li>
+                <li>
+                    <a href="#" onclick="showChangeoverReport()">
+                        <i class="fas fa-exchange-alt"></i> Changeover Report
+                    </a>
+                </li>
+                <li>
+                    <a href="{% url 'admin:workflow_machine_changelist' %}">
+                        <i class="fas fa-tools"></i> Manage Machines
+                    </a>
+                </li>
+            </ul>
+            
+            <div class="sidebar-section">System Management</div>
+            <ul class="sidebar-menu">
+                <li>
+                    <a href="{% url 'admin:index' %}">
+                        <i class="fas fa-cogs"></i> System Administration
+                    </a>
+                </li>
+                <li>
+                    <a href="{% url 'admin:accounts_customuser_changelist' %}">
+                        <i class="fas fa-users"></i> User Management
+                    </a>
+                </li>
+                <li>
+                    <a href="{% url 'admin:products_product_changelist' %}">
+                        <i class="fas fa-pills"></i> Product Management
+                    </a>
+                </li>
+                <li>
+                    <a href="{% url 'admin:workflow_machine_changelist' %}">
+                        <i class="fas fa-tools"></i> Machine Configuration
+                    </a>
+                </li>
+                <li>
+                    <a href="{% url 'admin:bmr_bmr_changelist' %}">
+                        <i class="fas fa-file-medical"></i> BMR Administration
+                    </a>
+                </li>
+            </ul>
+        </div>
+        
+        <!-- Main Content -->
+        <div class="admin-content">
+            {% block content %}{% endblock %}
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- FGS Monitor & Timeline Submenu Functionality -->
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Dropdown initialization is now handled by dropdown-fix.js
+        console.log('Deferring dropdown initialization to dropdown-fix.js');
+        
+        // Generic submenu functionality
+        function initializeSubmenu(toggleSelector, submenuId, pageIncludes) {
+            const toggle = document.querySelector(toggleSelector);
+            const submenu = document.getElementById(submenuId);
+            
+            if (toggle && submenu) {
+                toggle.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    
+                    const isExpanded = submenu.classList.contains('show');
+                    
+                    if (isExpanded) {
+                        submenu.classList.remove('show');
+                        toggle.classList.add('collapsed');
+                        toggle.setAttribute('aria-expanded', 'false');
+                    } else {
+                        submenu.classList.add('show');
+                        toggle.classList.remove('collapsed');
+                        toggle.setAttribute('aria-expanded', 'true');
+                    }
+                });
+                
+                // Auto-expand if we're on the relevant page
+                pageIncludes.forEach(include => {
+                    if (window.location.pathname.includes(include)) {
+                        submenu.classList.add('show');
+                        toggle.classList.remove('collapsed');
+                        toggle.setAttribute('aria-expanded', 'true');
+                    }
+                });
+            }
+        }
+        
+        // Initialize FGS Monitor submenu
+        initializeSubmenu('[data-bs-target="#fgsSubmenu"]', 'fgsSubmenu', ['fgs-monitor']);
+        
+        // Initialize Timeline submenu
+        initializeSubmenu('[data-bs-target="#timelineSubmenu"]', 'timelineSubmenu', ['admin/timeline', 'export_timeline_data']);
+        
+        // Handle submenu link clicks for smooth scrolling (FGS Monitor only)
+        const fgsSubmenuLinks = document.querySelectorAll('#fgsSubmenu a');
+        fgsSubmenuLinks.forEach(link => {
+            link.addEventListener('click', function(e) {
+                const href = this.getAttribute('href');
+                const hashIndex = href.indexOf('#');
+                
+                if (hashIndex !== -1) {
+                    const targetId = href.substring(hashIndex + 1);
+                    const baseUrl = href.substring(0, hashIndex);
+                    
+                    // Navigate to the page if we're not already there
+                    if (!window.location.pathname.includes('fgs-monitor')) {
+                        // Let the default navigation happen
+                        return true;
+                    } else {
+                        // Prevent default and scroll to section
+                        e.preventDefault();
+                        const targetElement = document.getElementById(targetId);
+                        if (targetElement) {
+                            targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }
+                    }
+                }
+            });
+        });
+    });
+    </script>
+
+    <!-- Global Machine Management Functions -->
+    <script>
+    // Machine Management Functions - Available globally
+    function showMachineOverview() {
+        // Try to get machine data from hidden JSON element
+        const machineDataElement = document.querySelector('[data-machine-stats]');
+        if (machineDataElement) {
+            try {
+                const machineStats = JSON.parse(machineDataElement.textContent);
+                let tableRows = '';
+                
+                if (machineStats && Object.keys(machineStats).length > 0) {
+                    Object.entries(machineStats).forEach(([machineId, stats]) => {
+                        const machine = stats.machine || {};
+                        const statusBadge = machine.is_active ? 
+                            '<span class="badge bg-success">Active</span>' : 
+                            '<span class="badge bg-danger">Inactive</span>';
+                        
+                        tableRows += `
+                            <tr>
+                                <td>${machine.name || 'N/A'}</td>
+                                <td>${(machine.machine_type || 'N/A').charAt(0).toUpperCase() + (machine.machine_type || 'N/A').slice(1)}</td>
+                                <td>${statusBadge}</td>
+                                <td>${stats.usage_count || 0}</td>
+                                <td>${stats.breakdown_count || 0}</td>
+                                <td>${stats.changeover_count || 0}</td>
+                                <td>${stats.breakdown_rate || 0}%</td>
+                            </tr>
+                        `;
+                    });
+                } else {
+                    tableRows = '<tr><td colspan="7" class="text-center text-muted">No machine data available</td></tr>';
+                }
+                
+                const modalContent = `
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Machine Name</th>
+                                    <th>Type</th>
+                                    <th>Status</th>
+                                    <th>Usage Count</th>
+                                    <th>Breakdowns</th>
+                                    <th>Changeovers</th>
+                                    <th>Breakdown Rate</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${tableRows}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+                showMachineModal('Machine Overview', modalContent);
+                return;
+            } catch (e) {
+                console.log('Could not parse machine data:', e);
+            }
+        }
+        
+        // Fallback: redirect to admin dashboard
+        const modalContent = `
+            <div class="alert alert-info">
+                <h6><i class="fas fa-info-circle me-2"></i>Machine Overview</h6>
+                <p>Machine overview data is available on the main admin dashboard. Click below to navigate there.</p>
+            </div>
+            <div class="text-center">
+                <a href="/dashboard/admin-overview/" class="btn btn-primary">
+                    <i class="fas fa-cogs me-2"></i>Go to Admin Dashboard
+                </a>
+            </div>
+        `;
+        showMachineModal('Machine Overview', modalContent);
+    }
+                            <thead>
+                                <tr>
+                                    <th>Machine Name</th>
+                                    <th>Type</th>
+                                    <th>Status</th>
+                                    <th>Usage Count</th>
+                                    <th>Breakdowns</th>
+                                    <th>Changeovers</th>
+                                    <th>Breakdown Rate</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${tableRows}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+                showMachineModal('Machine Overview', modalContent);
+                return;
+            } catch (e) {
+                console.log('Could not parse machine data:', e);
+            }
+        }
+        
+        // Fallback: redirect to admin dashboard
+        const modalContent = `
+            <div class="alert alert-info">
+                <h6><i class="fas fa-info-circle me-2"></i>Machine Overview</h6>
+                <p>Machine overview data is available on the main admin dashboard. Click below to navigate there.</p>
+            </div>
+            <div class="text-center">
+                <a href="/dashboard/admin-overview/" class="btn btn-primary">
+                    <i class="fas fa-tachometer-alt me-2"></i>Go to Admin Dashboard
+                </a>
+            </div>
+        `;
+        showMachineModal('Machine Overview', modalContent);
+    }
+
+    function showBreakdownReport() {
+        // Try to get breakdown data from hidden JSON element
+        const breakdownDataElement = document.querySelector('[data-breakdown-data]');
+        if (breakdownDataElement) {
+            try {
+                const breakdownData = JSON.parse(breakdownDataElement.textContent);
+                let tableRows = '';
+                
+                if (breakdownData && breakdownData.length > 0) {
+                    breakdownData.forEach(breakdown => {
+                        tableRows += `
+                            <tr>
+                                <td>${breakdown.machine_name}</td>
+                                <td>${breakdown.batch_number}</td>
+                                <td>${breakdown.start_time}</td>
+                                <td>${breakdown.end_time}</td>
+                                <td>${breakdown.duration}</td>
+                                <td>${breakdown.reason}</td>
+                            </tr>
+                        `;
+                    });
+                } else {
+                    tableRows = '<tr><td colspan="6" class="text-center text-muted">No recent breakdowns</td></tr>';
+                }
+                
+                const modalContent = `
+                    <div class="mb-3">
+                        <h6>Recent Breakdowns (Last 30 Days)</h6>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Machine</th>
+                                    <th>BMR</th>
+                                    <th>Start Time</th>
+                                    <th>End Time</th>
+                                    <th>Duration</th>
+                                    <th>Reason</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${tableRows}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+                showMachineModal('Breakdown Report', modalContent);
+                return;
+            } catch (e) {
+                console.log('Could not parse breakdown data:', e);
+            }
+        }
+        
+        // Fallback: redirect to admin dashboard
+        const modalContent = `
+            <div class="alert alert-warning">
+                <h6><i class="fas fa-exclamation-triangle me-2"></i>Breakdown Report</h6>
+                <p>Breakdown report data is available on the main admin dashboard. Click below to navigate there.</p>
+            </div>
+            <div class="text-center">
+                <a href="/dashboard/admin-overview/" class="btn btn-warning">
+                    <i class="fas fa-tools me-2"></i>Go to Admin Dashboard
+                </a>
+            </div>
+        `;
+        showMachineModal('Breakdown Report', modalContent);
+    }
+
+    function showChangeoverReport() {
+        // Try to get changeover data from hidden JSON element
+        const changeoverDataElement = document.querySelector('[data-changeover-data]');
+        if (changeoverDataElement) {
+            try {
+                const changeoverData = JSON.parse(changeoverDataElement.textContent);
+                let tableRows = '';
+                
+                if (changeoverData && changeoverData.length > 0) {
+                    changeoverData.forEach(changeover => {
+                        tableRows += `
+                            <tr>
+                                <td>${changeover.machine_name}</td>
+                                <td>${changeover.from_product}</td>
+                                <td>${changeover.to_product}</td>
+                                <td>${changeover.start_time}</td>
+                                <td>${changeover.end_time}</td>
+                                <td>${changeover.duration}</td>
+                            </tr>
+                        `;
+                    });
+                } else {
+                    tableRows = '<tr><td colspan="6" class="text-center text-muted">No recent changeovers</td></tr>';
+                }
+                
+                const modalContent = `
+                    <div class="mb-3">
+                        <h6>Recent Changeovers (Last 30 Days)</h6>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Machine</th>
+                                    <th>From Product</th>
+                                    <th>To Product</th>
+                                    <th>Start Time</th>
+                                    <th>End Time</th>
+                                    <th>Duration</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${tableRows}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+                showMachineModal('Changeover Report', modalContent);
+                return;
+            } catch (e) {
+                console.log('Could not parse changeover data:', e);
+            }
+        }
+        
+        // Fallback: redirect to admin dashboard
+        const modalContent = `
+            <div class="alert alert-info">
+                <h6><i class="fas fa-exchange-alt me-2"></i>Changeover Report</h6>
+                <p>Changeover report data is available on the main admin dashboard. Click below to navigate there.</p>
+            </div>
+            <div class="text-center">
+                <a href="/dashboard/admin-overview/" class="btn btn-info">
+                    <i class="fas fa-sync-alt me-2"></i>Go to Admin Dashboard
+                </a>
+            </div>
+        `;
+        showMachineModal('Changeover Report', modalContent);
+    }
+
+    function showMachineModal(title, content) {
+        // Remove existing modal if any
+        const existingModal = document.getElementById('machineModal');
+        if (existingModal) {
+            existingModal.remove();
+        }
+        
+        // Create modal HTML
+        const modalHtml = `
+            <div class="modal fade" id="machineModal" tabindex="-1">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">
+                                <i class="fas fa-cogs me-2"></i>${title}
+                            </h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            ${content}
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                <i class="fas fa-times me-2"></i>Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Add modal to body
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        
+        // Show modal
+        const modal = new bootstrap.Modal(document.getElementById('machineModal'));
+        modal.show();
+        
+        // Clean up when modal is hidden
+        document.getElementById('machineModal').addEventListener('hidden.bs.modal', function() {
+            this.remove();
+        });
+    }
+    </script>
+    
+    <!-- Bootstrap Dropdown Fix -->
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('Unified Admin Bootstrap initialization...');
+        
+        // Check if Chart.js is available
+        if (typeof Chart === 'undefined') {
+            console.error('Chart.js is not loaded! Charts will not display.');
+        } else {
+            console.log('Chart.js loaded successfully, version:', Chart.version);
+        }
+        
+        // Initialize Bootstrap dropdowns with explicit configuration
+        setTimeout(function() {
+            const dropdownTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="dropdown"]'));
+            const dropdownList = dropdownTriggerList.map(function (dropdownTriggerEl) {
+                return new bootstrap.Dropdown(dropdownTriggerEl);
+            });
+            
+            console.log('Unified admin dropdowns initialized:', dropdownList.length);
+        }, 100);
+        
+        // Chart debugging function
+        setTimeout(function() {
+            // Check for chart canvases and their visibility
+            const chartCanvases = ['productTypeChart', 'phaseStatusChart', 'weeklyTrendChart', 'qcStatusChart'];
+            chartCanvases.forEach(canvasId => {
+                const canvas = document.getElementById(canvasId);
+                if (canvas) {
+                    const rect = canvas.getBoundingClientRect();
+                    console.log(`Canvas ${canvasId}:`, {
+                        exists: true,
+                        visible: rect.width > 0 && rect.height > 0,
+                        dimensions: `${rect.width}x${rect.height}`,
+                        display: getComputedStyle(canvas).display
+                    });
+                } else {
+                    console.log(`Canvas ${canvasId}: not found`);
+                }
+            });
+        }, 2000);
+    });
+    </script>
+    
+    <!-- Add dropdown fix script -->
+    <script src="{% static 'js/dropdown-fix.js' %}"></script>
+    
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

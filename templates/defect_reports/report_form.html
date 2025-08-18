@@ -1,0 +1,95 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-10 mx-auto">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">Report Quality Defect</h4>
+                </div>
+                <div class="card-body">
+                    <form method="post" enctype="multipart/form-data" class="needs-validation" novalidate>
+                        {% csrf_token %}
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="{{ form.batch.id_for_label }}" class="form-label">Batch Number *</label>
+                                {{ form.batch }}
+                                {% if form.batch.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.batch.errors }}
+                                </div>
+                                {% endif %}
+                                <div class="form-text">Select the batch with the defect</div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <label for="{{ form.production_phase.id_for_label }}" class="form-label">Production Phase *</label>
+                                {{ form.production_phase }}
+                                {% if form.production_phase.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.production_phase.errors }}
+                                </div>
+                                {% endif %}
+                                <div class="form-text">The phase where the defect was observed</div>
+                            </div>
+                        </div>
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-8">
+                                <label for="{{ form.title.id_for_label }}" class="form-label">Defect Title *</label>
+                                {{ form.title }}
+                                {% if form.title.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.title.errors }}
+                                </div>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="col-md-4">
+                                <label for="{{ form.severity.id_for_label }}" class="form-label">Severity *</label>
+                                {{ form.severity }}
+                                {% if form.severity.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.severity.errors }}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="{{ form.description.id_for_label }}" class="form-label">Defect Description *</label>
+                            {{ form.description }}
+                            {% if form.description.errors %}
+                            <div class="invalid-feedback d-block">
+                                {{ form.description.errors }}
+                            </div>
+                            {% endif %}
+                            <div class="form-text">Provide details about when and how the defect was noticed</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="{{ form.image.id_for_label }}" class="form-label">Upload Image</label>
+                            {{ form.image }}
+                            {% if form.image.errors %}
+                            <div class="invalid-feedback d-block">
+                                {{ form.image.errors }}
+                            </div>
+                            {% endif %}
+                            <div class="form-text">Upload a clear photo of the defect (optional)</div>
+                        </div>
+                        
+                        <div class="text-end mt-4">
+                            <a href="{% url 'defect_list' %}" class="btn btn-secondary me-2">Cancel</a>
+                            <button type="submit" class="btn btn-primary">Submit Report</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

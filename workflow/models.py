@@ -11,6 +11,7 @@ class Machine(models.Model):
         ('compression', 'Compression'),
         ('coating', 'Coating'),
         ('blister_packing', 'Blister Packing'),
+        ('bulk_packing', 'Bulk Packing'),  # For tablets and capsules
         ('filling', 'Filling'),  # For capsules
     ]
     

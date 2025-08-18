@@ -1,0 +1,178 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h2>Quality Defect Reports</h2>
+                <a href="{% url 'report_defect' %}" class="btn btn-primary">
+                    <i class="fas fa-plus-circle me-1"></i> Report New Defect
+                </a>
+            </div>
+            <hr>
+        </div>
+    </div>
+    
+    <!-- Filters Row -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <select class="form-select filter-select" id="status-filter">
+                                <option value="">All Statuses</option>
+                                <option value="pending">Pending Review</option>
+                                <option value="reviewed">Reviewed</option>
+                                <option value="action_required">Action Required</option>
+                                <option value="resolved">Resolved</option>
+                                <option value="dismissed">Dismissed</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <select class="form-select filter-select" id="severity-filter">
+                                <option value="">All Severity Levels</option>
+                                <option value="low">Low</option>
+                                <option value="medium">Medium</option>
+                                <option value="high">High</option>
+                                <option value="critical">Critical</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <input type="text" class="form-control" id="search-input" placeholder="Search by title or batch...">
+                        </div>
+                        <div class="col-md-2">
+                            <button id="reset-filters" class="btn btn-outline-secondary w-100">Reset</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Reports Table -->
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card shadow">
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Title</th>
+                                    <th>Batch</th>
+                                    <th>Reported Date</th>
+                                    <th>Severity</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="defects-table-body">
+                                {% if defects %}
+                                    {% for defect in defects %}
+                                    <tr data-status="{{ defect.status }}" data-severity="{{ defect.severity }}">
+                                        <td>{{ defect.title }}</td>
+                                        <td>{{ defect.batch.batch_number }}</td>
+                                        <td>{{ defect.reported_date|date:"M d, Y" }}</td>
+                                        <td>
+                                            {% if defect.severity == 'low' %}
+                                                <span class="badge bg-success">Low</span>
+                                            {% elif defect.severity == 'medium' %}
+                                                <span class="badge bg-warning text-dark">Medium</span>
+                                            {% elif defect.severity == 'high' %}
+                                                <span class="badge bg-danger">High</span>
+                                            {% else %}
+                                                <span class="badge bg-dark">Critical</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if defect.status == 'pending' %}
+                                                <span class="badge bg-info">Pending Review</span>
+                                            {% elif defect.status == 'reviewed' %}
+                                                <span class="badge bg-secondary">Reviewed</span>
+                                            {% elif defect.status == 'action_required' %}
+                                                <span class="badge bg-warning text-dark">Action Required</span>
+                                            {% elif defect.status == 'resolved' %}
+                                                <span class="badge bg-success">Resolved</span>
+                                            {% else %}
+                                                <span class="badge bg-light text-dark">Dismissed</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <a href="{% url 'defect_detail' defect.id %}" class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-eye me-1"></i> View
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                {% else %}
+                                    <tr>
+                                        <td colspan="6" class="text-center py-4">
+                                            <div class="text-muted">
+                                                <i class="fas fa-inbox fa-3x mb-3"></i>
+                                                <p>No defect reports found.</p>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const statusFilter = document.getElementById('status-filter');
+        const severityFilter = document.getElementById('severity-filter');
+        const searchInput = document.getElementById('search-input');
+        const resetButton = document.getElementById('reset-filters');
+        const tableRows = document.querySelectorAll('#defects-table-body tr');
+        
+        function applyFilters() {
+            const status = statusFilter.value.toLowerCase();
+            const severity = severityFilter.value.toLowerCase();
+            const searchTerm = searchInput.value.toLowerCase();
+            
+            tableRows.forEach(row => {
+                // Don't filter the "no reports found" row
+                if (!row.dataset.status) return;
+                
+                const rowStatus = row.dataset.status;
+                const rowSeverity = row.dataset.severity;
+                const rowText = row.textContent.toLowerCase();
+                
+                const matchesStatus = status === '' || rowStatus === status;
+                const matchesSeverity = severity === '' || rowSeverity === severity;
+                const matchesSearch = searchTerm === '' || rowText.includes(searchTerm);
+                
+                if (matchesStatus && matchesSeverity && matchesSearch) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        }
+        
+        // Event listeners
+        statusFilter.addEventListener('change', applyFilters);
+        severityFilter.addEventListener('change', applyFilters);
+        searchInput.addEventListener('keyup', applyFilters);
+        
+        resetButton.addEventListener('click', function() {
+            statusFilter.value = '';
+            severityFilter.value = '';
+            searchInput.value = '';
+            applyFilters();
+        });
+    });
+</script>
+{% endblock %}
+{% endblock %}

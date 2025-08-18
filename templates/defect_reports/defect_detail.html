@@ -1,0 +1,137 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-10 mx-auto">
+            <!-- Breadcrumbs -->
+            <nav aria-label="breadcrumb" class="mb-3">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{% url 'defect_list' %}">Defect Reports</a></li>
+                    <li class="breadcrumb-item active">{{ defect.title }}</li>
+                </ol>
+            </nav>
+            
+            <!-- Defect Header Card -->
+            <div class="card shadow mb-4">
+                <div class="card-header {% if defect.severity == 'critical' %}bg-danger text-white{% elif defect.severity == 'high' %}bg-warning{% elif defect.severity == 'medium' %}bg-info text-white{% else %}bg-success text-white{% endif %}">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h4 class="mb-0">{{ defect.title }}</h4>
+                        <span class="badge {% if defect.status == 'pending' %}bg-info{% elif defect.status == 'reviewed' %}bg-secondary{% elif defect.status == 'action_required' %}bg-warning text-dark{% elif defect.status == 'resolved' %}bg-success{% else %}bg-light text-dark{% endif %}">
+                            {{ defect.get_status_display }}
+                        </span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>Batch Number:</strong> {{ defect.batch.batch_number }}</p>
+                            <p><strong>Product:</strong> {{ defect.batch.product.name }}</p>
+                            <p><strong>Production Phase:</strong> {{ defect.production_phase }}</p>
+                            <p><strong>Reported By:</strong> {{ defect.reported_by.get_full_name|default:defect.reported_by.username }}</p>
+                            <p><strong>Report Date:</strong> {{ defect.reported_date|date:"F d, Y H:i" }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Severity:</strong> 
+                                <span class="badge {% if defect.severity == 'low' %}bg-success{% elif defect.severity == 'medium' %}bg-warning text-dark{% elif defect.severity == 'high' %}bg-danger{% else %}bg-dark{% endif %}">
+                                    {{ defect.get_severity_display }}
+                                </span>
+                            </p>
+                            {% if defect.status != 'pending' %}
+                                <p><strong>Reviewed By:</strong> {{ defect.reviewed_by.get_full_name|default:defect.reviewed_by.username }}</p>
+                                <p><strong>Review Date:</strong> {{ defect.reviewed_date|date:"F d, Y H:i"|default:"Not reviewed yet" }}</p>
+                            {% endif %}
+                            {% if defect.status == 'resolved' %}
+                                <p><strong>Resolution Date:</strong> {{ defect.action_date|date:"F d, Y H:i" }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Description Card -->
+            <div class="card shadow mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Defect Description</h5>
+                </div>
+                <div class="card-body">
+                    <p>{{ defect.description|linebreaks }}</p>
+                    
+                    {% if defect.image %}
+                    <div class="mt-4">
+                        <h6>Defect Image:</h6>
+                        <img src="{{ defect.image.url }}" alt="Defect Image" class="img-fluid rounded border" style="max-height: 400px;">
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Review Notes Card (if reviewed) -->
+            {% if defect.status != 'pending' and defect.review_notes %}
+            <div class="card shadow mb-4">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0">Quality Review Notes</h5>
+                </div>
+                <div class="card-body">
+                    <p>{{ defect.review_notes|linebreaks }}</p>
+                </div>
+            </div>
+            {% endif %}
+            
+            <!-- Corrective Action Card (if any) -->
+            {% if defect.corrective_action %}
+            <div class="card shadow mb-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">Corrective Actions</h5>
+                </div>
+                <div class="card-body">
+                    <p>{{ defect.corrective_action|linebreaks }}</p>
+                </div>
+            </div>
+            {% endif %}
+            
+            <!-- Review Form for QA Staff -->
+            {% if is_qa and defect.status != 'resolved' and defect.status != 'dismissed' %}
+            <div class="card shadow">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">Review This Defect Report</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        <div class="mb-3">
+                            <label for="{{ review_form.status.id_for_label }}" class="form-label">Update Status</label>
+                            {{ review_form.status }}
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="{{ review_form.review_notes.id_for_label }}" class="form-label">Review Notes</label>
+                            {{ review_form.review_notes }}
+                            <div class="form-text">Add your assessment of the defect</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="{{ review_form.corrective_action.id_for_label }}" class="form-label">Corrective Actions</label>
+                            {{ review_form.corrective_action }}
+                            <div class="form-text">Describe actions needed to address this defect</div>
+                        </div>
+                        
+                        <div class="text-end">
+                            <button type="submit" class="btn btn-primary">Submit Review</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+            
+            <!-- Action Buttons -->
+            <div class="mt-4 text-end">
+                <a href="{% url 'defect_list' %}" class="btn btn-secondary">Back to List</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

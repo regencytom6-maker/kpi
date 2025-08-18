@@ -1,6 +1,23 @@
 from django.db import models
+from django.core.exceptions import ValidationError
 
 class Product(models.Model):
+    def clean(self):
+        # Only allow tablet_type for tablets, capsule_type for capsules
+        if self.product_type == 'tablet' and self.capsule_type:
+            raise ValidationError({'capsule_type': 'Tablet products cannot have a capsule type.'})
+        if self.product_type == 'capsule' and self.tablet_type:
+            raise ValidationError({'tablet_type': 'Capsule products cannot have a tablet type.'})
+        # Optionally clear irrelevant fields
+        if self.product_type != 'tablet':
+            self.tablet_type = ''
+        if self.product_type != 'capsule':
+            self.capsule_type = ''
+    
+    def save(self, *args, **kwargs):
+        # Always run clean() before saving
+        self.clean()
+        super().save(*args, **kwargs)
     """Product master data for pharmaceutical products"""
     
     PRODUCT_TYPE_CHOICES = [
@@ -19,6 +36,11 @@ class Product(models.Model):
         ('tablet_2', 'Tablet Type 2'),
     ]
     
+    CAPSULE_TYPE_CHOICES = [
+        ('normal', 'Normal Capsule (Blister)'),
+        ('bulk', 'Bulk Capsule'),
+    ]
+    
     # Essential fields only
     product_name = models.CharField(max_length=200)
     product_type = models.CharField(max_length=20, choices=PRODUCT_TYPE_CHOICES)
@@ -35,6 +57,15 @@ class Product(models.Model):
         choices=TABLET_TYPE_CHOICES,
         blank=True,
         help_text="Only applicable for tablets - normal or tablet type 2"
+    )
+    
+    # Capsule specific fields
+    capsule_type = models.CharField(
+        max_length=20, 
+        choices=CAPSULE_TYPE_CHOICES,
+        blank=True,
+        default='normal',
+        help_text="Only applicable for capsules - normal (blister) or bulk"
     )
     
     # Batch size configuration - moved from BMR to Product
@@ -77,10 +108,13 @@ class Product(models.Model):
         return f"{self.product_name} ({self.get_product_type_display()})"
     
     def save(self, *args, **kwargs):
-        # Clear tablet-specific fields if product is not a tablet
+        # Clear product-specific fields if they don't match the product type
         if self.product_type != 'tablet':
             self.coating_type = ''
             self.tablet_type = ''
+            
+        if self.product_type != 'capsule':
+            self.capsule_type = ''
         
         # Set batch_size_unit based on product type
         if self.product_type == 'tablet':

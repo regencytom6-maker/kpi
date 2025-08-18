@@ -39,12 +39,23 @@
             font-weight: bold;
         }
     
-        /* Fix dropdown cursor */
+        /* Fix dropdown cursor and functionality */
         .dropdown-toggle {
             cursor: pointer !important;
         }
         .nav-link[data-bs-toggle="dropdown"] {
             cursor: pointer !important;
+        }
+        
+        /* Ensure dropdown menu appears above other content */
+        .navbar .dropdown-menu {
+            z-index: 1050 !important;
+        }
+        
+        /* Fix navbar positioning */
+        .navbar {
+            position: relative;
+            z-index: 1030;
         }
         </style>
     {% block extra_css %}{% endblock %}
@@ -62,12 +73,12 @@
             {% if user.is_authenticated %}
             <div class="navbar-nav ms-auto">
                 <div class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle text-white" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    <a class="nav-link dropdown-toggle text-white" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                         <i class="fas fa-user me-1"></i>
                         {{ user.get_full_name|default:user.username }}
                         <span class="badge bg-secondary ms-1">{{ user.get_role_display }}</span>
                     </a>
-                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown">
                         <li><a class="dropdown-item" href="{% url 'home' %}"><i class="fas fa-tachometer-alt me-2"></i>Dashboard</a></li>
                         <li><a class="dropdown-item" href="{% url 'accounts:profile' %}"><i class="fas fa-user me-2"></i>Profile</a></li>
                         {% if user.is_staff %}
@@ -156,17 +167,20 @@
                                 }
                             }
                             document.addEventListener('click', outsideClick);
-                        }, 100);
-                    }
-                });
-                
-                console.log('Dropdown setup complete');
-            } else {
-                console.log('Dropdown elements not found');
-                console.log('userDropdown:', userDropdown);
-                console.log('dropdownMenu:', dropdownMenu);
-            }
-        }, 200);
+    <!-- Bootstrap Dropdown Fix -->
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('Bootstrap dropdown initialization...');
+        
+        // Initialize Bootstrap dropdowns with explicit configuration
+        setTimeout(function() {
+            const dropdownTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="dropdown"]'));
+            const dropdownList = dropdownTriggerList.map(function (dropdownTriggerEl) {
+                return new bootstrap.Dropdown(dropdownTriggerEl);
+            });
+            
+            console.log('Bootstrap dropdowns initialized:', dropdownList.length);
+        }, 100);
     });
     </script>
     

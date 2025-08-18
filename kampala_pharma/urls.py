@@ -16,6 +16,8 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from django.conf import settings
+from django.conf.urls.static import static
 from dashboards.views import dashboard_home
 
 urlpatterns = [
@@ -26,9 +28,14 @@ urlpatterns = [
     path('dashboard/', include('dashboards.urls', namespace='dashboards')),
     path('reports/', include('reports.urls', namespace='reports')),
     path('fgs/', include('fgs_management.urls', namespace='fgs_management')),
+    path('quality/defects/', include('defect_reports.urls')),
     # API URLs will be added later
     # path('api/', include('bmr.urls')),
     # path('api/', include('workflow.urls')),
     # path('api/', include('dashboards.urls')),
     # path('api/', include('products.urls')),
 ]
+
+# Serve media files in development
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

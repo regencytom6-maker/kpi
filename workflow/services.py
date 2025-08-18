@@ -81,6 +81,15 @@ class WorkflowService:
                 if 'blister_packing' in workflow_phases:
                     index = workflow_phases.index('blister_packing')
                     workflow_phases[index] = 'bulk_packing'
+                    
+        # Handle capsule-specific logic for packing types
+        if product_type == 'capsule':
+            # Handle bulk capsules
+            if getattr(bmr.product, 'capsule_type', None) == 'bulk':
+                # Bulk capsules use bulk_packing instead of blister_packing
+                if 'blister_packing' in workflow_phases:
+                    index = workflow_phases.index('blister_packing')
+                    workflow_phases[index] = 'bulk_packing'
         
         # Remove any duplicate phases that might exist
         seen = set()

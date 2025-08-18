@@ -1,0 +1,22 @@
+/* Custom fixes for UI issues */
+
+/* Hide pagination numbers at the top of the page */
+.pagination {
+    display: none !important;
+}
+
+/* Hide unwanted navigation elements */
+.paginator, .aligned .paginator, .submit-row .paginator {
+    display: none !important;
+}
+
+/* Ensure dropdowns work correctly */
+.dropdown-menu {
+    position: absolute;
+    z-index: 1000;
+}
+
+/* Make dropdown toggles clickable */
+.dropdown-toggle {
+    cursor: pointer !important;
+}

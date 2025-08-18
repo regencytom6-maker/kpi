@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     'dashboards',
     'reports',
     'fgs_management',
+    'defect_reports',
 ]
 
 MIDDLEWARE = [
@@ -176,3 +177,7 @@ BATCH_NUMBER_YEAR_LENGTH = 4
 
 # Session timeout setting (12 hours = 43200 seconds)
 SESSION_TIMEOUT = 43200
+
+# Media files (uploads)
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')

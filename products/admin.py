@@ -10,6 +10,7 @@ class ProductAdminForm(forms.ModelForm):
             'product_type': forms.Select(attrs={'id': 'id_product_type'}),
             'coating_type': forms.Select(attrs={'id': 'id_coating_type'}),
             'tablet_type': forms.Select(attrs={'id': 'id_tablet_type'}),
+            'capsule_type': forms.Select(attrs={'id': 'id_capsule_type'}),
         }
     
     def __init__(self, *args, **kwargs):
@@ -17,23 +18,25 @@ class ProductAdminForm(forms.ModelForm):
         # Add help text
         self.fields['coating_type'].help_text = "Select coating type for tablets only"
         self.fields['tablet_type'].help_text = "Select tablet type for tablets only"
+        self.fields['capsule_type'].help_text = "Select capsule type: normal (blister) or bulk"
         
-        # Add empty option for tablet-specific fields
+        # Add empty option for product-specific fields
         self.fields['coating_type'].choices = [('', '---------')] + list(self.fields['coating_type'].choices)
         self.fields['tablet_type'].choices = [('', '---------')] + list(self.fields['tablet_type'].choices)
+        self.fields['capsule_type'].choices = [('', '---------')] + list(self.fields['capsule_type'].choices)
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
     form = ProductAdminForm
     list_display = [
-        'product_name', 'product_type', 'coating_type', 'tablet_type', 
+        'product_name', 'product_type', 'coating_type', 'tablet_type', 'capsule_type',
         'standard_batch_size', 'batch_size_unit', 'packaging_size_in_units', 'is_active'
     ]
-    list_filter = ['product_type', 'coating_type', 'tablet_type', 'is_active']
+    list_filter = ['product_type', 'coating_type', 'tablet_type', 'capsule_type', 'is_active']
     search_fields = ['product_name']
     
     fields = [
-        'product_name', 'product_type', 'coating_type', 'tablet_type',
+        'product_name', 'product_type', 'coating_type', 'tablet_type', 'capsule_type',
         'standard_batch_size', 'batch_size_unit', 'packaging_size_in_units',
         'is_active'
     ]

@@ -3,6 +3,7 @@ from django.core.paginator import Paginator
 from django.db.models import F, ExpressionWrapper, DateTimeField
 from django.contrib.auth.decorators import login_required
 from django.utils import timezone
+from django.http import JsonResponse
 
 @login_required
 def admin_timeline_view(request):
@@ -96,6 +97,7 @@ from django.core.paginator import Paginator
 from django.db.models.functions import Coalesce
 import csv
 import xlwt
+import json
 from bmr.models import BMR
 from workflow.models import BatchPhaseExecution, Machine
 from workflow.services import WorkflowService
@@ -547,8 +549,8 @@ def admin_dashboard(request):
         changeover_start_time__date=today
     ).count()
     
-    # Machine utilization summary
-    machine_stats = {}
+    # Machine utilization summary - fully serialized to JSON
+    machine_stats_data = {}
     for machine in all_machines:
         usage_count = BatchPhaseExecution.objects.filter(machine_used=machine).count()
         breakdown_count = BatchPhaseExecution.objects.filter(
@@ -560,13 +562,35 @@ def admin_dashboard(request):
             changeover_occurred=True
         ).count()
         
-        machine_stats[machine.id] = {
-            'machine': machine,
+        # Check if machine is currently in use (in progress phases)
+        current_usage = BatchPhaseExecution.objects.filter(
+            machine_used=machine,
+            status='in_progress'
+        ).order_by('-created_date').first()
+        
+        current_usage_str = 'Not in use'
+        if current_usage:
+            current_usage_str = current_usage.phase.name
+            
+        # Serialize the machine object to avoid JSON serialization issues
+        machine_data = {
+            'id': machine.id,
+            'name': machine.name,
+            'machine_type': machine.machine_type,
+            'is_active': machine.is_active
+        }
+        
+        machine_stats_data[str(machine.id)] = {
+            'machine': machine_data,
             'usage_count': usage_count,
             'breakdown_count': breakdown_count,
             'changeover_count': changeover_count,
-            'breakdown_rate': round((breakdown_count / usage_count * 100), 1) if usage_count > 0 else 0
+            'breakdown_rate': round((breakdown_count / usage_count * 100), 1) if usage_count > 0 else 0,
+            'current_usage': current_usage_str
         }
+        
+    # Convert the entire data structure to a JSON string
+    machine_stats = json.dumps(machine_stats_data)
     
     context = {
         'user': request.user,
