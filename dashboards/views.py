@@ -1346,6 +1346,7 @@ def operator_dashboard(request):
                     dispensing.status = 'completed'
                     dispensing.completed_date = timezone.now()
                     dispensing.dispensing_notes = comments
+                    dispensing._complete_dispensing = True  # Set flag to trigger process_dispensing_completion
                     dispensing.save()
                     
                     # Get or update existing dispensing item
@@ -1359,7 +1360,7 @@ def operator_dashboard(request):
                         # Update existing item
                         dispensing_item.material_batch = material_batch
                         dispensing_item.dispensed_quantity = decimal_quantity
-                        dispensing_item.is_dispensed = True
+                        dispensing_item.is_dispensed = False  # Set to False so process_dispensing_completion can handle it
                         dispensing_item.save()
                     else:
                         # Create new item if none exists
@@ -1369,17 +1370,21 @@ def operator_dashboard(request):
                             material_batch=material_batch,
                             required_quantity=decimal_quantity,
                             dispensed_quantity=decimal_quantity,
-                            is_dispensed=True
+                            is_dispensed=False  # Set to False so process_dispensing_completion can handle it
                         )
                     
-                    # Update remaining quantity
-                    material_batch.quantity_remaining -= decimal_quantity
-                    material_batch.save()
+                    # The quantity update will be handled by process_dispensing_completion
+                    # when the dispensing is saved with 'completed' status
                     
-                    messages.success(request, f'Successfully dispensed {quantity} {material_batch.material.unit} of {material_batch.material.name} for BMR {bmr.batch_number}.')
+                    messages.success(request, f'Successfully dispensed {quantity} {material_batch.material.unit_of_measure} of {material_batch.material.material_name} for BMR {bmr.batch_number}.')
                 
                 except Exception as e:
-                    messages.error(request, f'Error dispensing material: {str(e)}')
+                    import traceback
+                    error_msg = f'Error dispensing material: {str(e)}'
+                    error_traceback = traceback.format_exc()
+                    print(f"DISPENSING ERROR: {error_msg}")
+                    print(f"TRACEBACK: {error_traceback}")
+                    messages.error(request, error_msg)
                 
                 return redirect(request.path)
         
