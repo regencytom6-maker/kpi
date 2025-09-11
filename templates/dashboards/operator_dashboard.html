@@ -93,6 +93,73 @@
         </div>
     </div>
 
+    {% if rejected_batches %}
+    <!-- Failed Post-Compression QC Tablet Batches for Reprocessing (Only for Granulation Operators) -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-danger">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-recycle me-2"></i>Failed Post-Compression QC Tablet Batches for Reprocessing
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead class="table-danger">
+                                <tr>
+                                    <th>BMR Number</th>
+                                    <th>Product</th>
+                                    <th>Batch Size</th>
+                                    <th>Failed Date</th>
+                                    <th>QC Rejection Reason</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in rejected_batches %}
+                                <tr>
+                                    <td>
+                                        <span class="badge bg-danger">{{ item.bmr.bmr_number }}</span>
+                                    </td>
+                                    <td>{{ item.bmr.product.product_name }}</td>
+                                    <td>{{ item.bmr.batch_size|floatformat:0 }} {{ item.bmr.product.unit_of_measure }}</td>
+                                    <td>{{ item.failed_date|date:"M d, Y H:i"|default:"N/A" }}</td>
+                                    <td>
+                                        {% if item.comments %}
+                                            {{ item.comments|truncatechars:50 }}
+                                        {% else %}
+                                            Post-compression QC failed
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if item.granulation_phase %}
+                                            <button type="button" class="btn btn-sm btn-warning" 
+                                                    onclick="startPhase('{{ item.granulation_phase.id }}', 'granulation', '{{ item.bmr.bmr_number }}')">
+                                                <i class="fas fa-recycle"></i> Start Reprocessing
+                                            </button>
+                                        {% else %}
+                                            <form method="post" action="">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="bmr_id" value="{{ item.bmr.id }}">
+                                                <input type="hidden" name="action" value="setup_reprocess">
+                                                <button type="submit" class="btn btn-sm btn-secondary">
+                                                    <i class="fas fa-cog"></i> Setup Reprocessing
+                                                </button>
+                                            </form>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Active Phase Tasks -->
     <div class="row mb-4">
         <div class="col-12">
@@ -209,17 +276,88 @@
                                             <th>Date</th>
                                             <th>Batch</th>
                                             <th>Phase</th>
+                                            <th></th>
                                         </tr>
                                     </thead>
                                     <tbody id="operator-history">
                                         {% for entry in operator_history %}
-                                        <tr><td>{{ entry.date }}</td><td>{{ entry.batch }}</td><td>{{ entry.phase }}</td></tr>
+                                        <tr>
+                                            <td>{{ entry.date }}</td>
+                                            <td>
+                                                <a href="{% url 'bmr:detail' entry.bmr_id %}" class="text-primary">
+                                                    {{ entry.batch }}
+                                                </a>
+                                            </td>
+                                            <td>{{ entry.phase }}</td>
+                                            <td>
+                                                <button type="button" class="btn btn-sm btn-info" 
+                                                        data-bs-toggle="modal" 
+                                                        data-bs-target="#materialsModal{{ entry.bmr_id }}">
+                                                    <i class="fas fa-boxes"></i>
+                                                </button>
+                                            </td>
+                                        </tr>
                                         {% empty %}
-                                        <tr><td colspan="3" class="text-center text-muted">No history found.</td></tr>
+                                        <tr><td colspan="4" class="text-center text-muted">No history found.</td></tr>
                                         {% endfor %}
                                     </tbody>
                                 </table>
                             </div>
+                            
+                            <!-- Modals for materials details -->
+                            {% for entry in operator_history %}
+                                {% if entry.bmr_id %}
+                                <div class="modal fade" id="materialsModal{{ entry.bmr_id }}" tabindex="-1" aria-labelledby="materialsModalLabel{{ entry.bmr_id }}" aria-hidden="true">
+                                    <div class="modal-dialog modal-lg">
+                                        <div class="modal-content">
+                                            <div class="modal-header bg-info text-white">
+                                                <h5 class="modal-title" id="materialsModalLabel{{ entry.bmr_id }}">
+                                                    <i class="fas fa-boxes me-2"></i>Materials for BMR {{ entry.batch }}
+                                                </h5>
+                                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                                            </div>
+                                            <div class="modal-body">
+                                                <div class="mb-3">
+                                                    <h6>Dispensing Details</h6>
+                                                    <p><strong>Phase:</strong> {{ entry.phase }}</p>
+                                                    <p><strong>Date:</strong> {{ entry.date }}</p>
+                                                </div>
+                                                <h6>Material List</h6>
+                                                <div class="table-responsive">
+                                                    <table class="table table-sm table-striped">
+                                                        <thead class="table-light">
+                                                            <tr>
+                                                                <th>Material</th>
+                                                                <th>Required Qty</th>
+                                                                <th>Dispensed Qty</th>
+                                                                <th>Batch/Lot</th>
+                                                                <th>Status</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody class="materials-list" data-bmr-id="{{ entry.bmr_id }}">
+                                                            <tr>
+                                                                <td colspan="5" class="text-center">
+                                                                    <div class="spinner-border text-primary" role="status">
+                                                                        <span class="visually-hidden">Loading...</span>
+                                                                    </div>
+                                                                    <p>Loading materials...</p>
+                                                                </td>
+                                                            </tr>
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                            <div class="modal-footer">
+                                                <a href="{% url 'bmr:detail' entry.bmr_id %}" class="btn btn-primary">
+                                                    <i class="fas fa-eye me-1"></i> View Full BMR
+                                                </a>
+                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endif %}
+                            {% endfor %}
                         </div>
                         <div class="col-md-4">
                             <h6><i class="fas fa-chart-bar text-success"></i> My Statistics</h6>
@@ -518,6 +656,90 @@ function toggleChangeoverFields() {
 document.getElementById('phaseForm').addEventListener('submit', function(e) {
     // Allow normal form submission to POST to the same URL
     return true;
+});
+
+// Load materials when modal is opened
+document.addEventListener('DOMContentLoaded', function() {
+    // Get all modals
+    var materialModals = document.querySelectorAll('[id^="materialsModal"]');
+    
+    // Add event listener for when modal is shown
+    materialModals.forEach(function(modal) {
+        modal.addEventListener('show.bs.modal', function(event) {
+            // Get the BMR ID from the modal ID
+            var bmrId = this.id.replace('materialsModal', '');
+            
+            // Find the target tbody for the materials list
+            var materialsListContainer = this.querySelector('.materials-list');
+            
+            // Fetch materials data using AJAX
+            fetch(`/bmr/api/materials/${bmrId}/`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // Clear loading indicator
+                    materialsListContainer.innerHTML = '';
+                    
+                    if (data.materials && data.materials.length > 0) {
+                        // Populate the table with materials data
+                        data.materials.forEach(function(material) {
+                            var row = document.createElement('tr');
+                            
+                            // Material name cell
+                            var nameCell = document.createElement('td');
+                            nameCell.innerHTML = `<strong>${material.name}</strong><br><small class="text-muted">${material.code}</small>`;
+                            row.appendChild(nameCell);
+                            
+                            // Required quantity cell
+                            var reqQtyCell = document.createElement('td');
+                            reqQtyCell.textContent = `${material.required} ${material.unit}`;
+                            row.appendChild(reqQtyCell);
+                            
+                            // Dispensed quantity cell
+                            var dispQtyCell = document.createElement('td');
+                            dispQtyCell.textContent = material.dispensed ? `${material.dispensed} ${material.unit}` : '-';
+                            row.appendChild(dispQtyCell);
+                            
+                            // Batch/Lot cell
+                            var batchCell = document.createElement('td');
+                            batchCell.textContent = material.batch_lot || '-';
+                            row.appendChild(batchCell);
+                            
+                            // Status cell
+                            var statusCell = document.createElement('td');
+                            if (material.is_dispensed) {
+                                statusCell.innerHTML = '<span class="badge bg-success">Dispensed</span>';
+                            } else {
+                                statusCell.innerHTML = '<span class="badge bg-warning">Pending</span>';
+                            }
+                            row.appendChild(statusCell);
+                            
+                            materialsListContainer.appendChild(row);
+                        });
+                    } else {
+                        // No materials found
+                        var row = document.createElement('tr');
+                        row.innerHTML = '<td colspan="5" class="text-center">No materials found for this BMR</td>';
+                        materialsListContainer.appendChild(row);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching materials:', error);
+                    materialsListContainer.innerHTML = `
+                        <tr>
+                            <td colspan="5" class="text-center text-danger">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                Error loading materials. Please try again.
+                            </td>
+                        </tr>
+                    `;
+                });
+        });
+    });
 });
 </script>
 {% endblock %}
