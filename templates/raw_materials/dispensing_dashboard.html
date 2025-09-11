@@ -1,0 +1,468 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Dispensing Dashboard - Kampala Pharmaceutical Industries{% endblock %}
+
+{% block extra_css %}
+<style>
+    .dispensing-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: #fff;
+        padding: 20px 0;
+        border-radius: 15px;
+        margin-bottom: 30px;
+    }
+    
+    .dispensing-card {
+        border: none;
+        border-radius: 15px;
+        box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+        transition: transform 0.3s ease;
+        margin-bottom: 20px;
+    }
+    
+    .dispensing-card:hover {
+        transform: translateY(-5px);
+    }
+    
+    .stat-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 15px;
+        padding: 25px;
+        text-align: center;
+        margin-bottom: 20px;
+    }
+    
+    .stat-card.green {
+        background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+    }
+    
+    .stat-card.orange {
+        background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+    }
+    
+    .stat-card.blue {
+        background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    }
+    
+    .phase-card {
+        border-left: 4px solid #667eea;
+        background: #f8f9fa;
+        padding: 15px;
+        margin-bottom: 10px;
+        border-radius: 8px;
+        transition: all 0.3s ease;
+    }
+    
+    .phase-card:hover {
+        background: #e9ecef;
+        transform: translateX(5px);
+    }
+    
+    .phase-card.pending {
+        border-left-color: #ffc107;
+    }
+    
+    .phase-card.in_progress {
+        border-left-color: #17a2b8;
+    }
+    
+    .phase-card.completed {
+        border-left-color: #28a745;
+    }
+    
+    .history-item {
+        border-bottom: 1px solid #dee2e6;
+        padding: 15px 0;
+        transition: all 0.2s ease;
+    }
+    
+    .history-item:last-child {
+        border-bottom: none;
+    }
+    
+    .history-item:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .bmr-link {
+        color: #6c63ff;
+        text-decoration: none;
+        font-weight: 600;
+        transition: all 0.2s ease;
+    }
+    
+    .bmr-link:hover {
+        color: #5046e5;
+        text-decoration: underline;
+    }
+    
+    .material-item {
+        padding: 10px;
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        margin-bottom: 10px;
+        border-left: 3px solid #6c63ff;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="dispensing-header text-center">
+        <div class="container">
+            <h1 class="display-4 mb-3">
+                <i class="fas fa-pills me-3"></i>
+                Dispensing Dashboard
+            </h1>
+            <p class="lead mb-0">Material Dispensing for Production Operations</p>
+        </div>
+    </div>
+
+    <!-- Statistics Row -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="stat-card orange">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <h4 class="mb-0">{{ pending_dispensing.count }}</h4>
+                        <small>Pending Dispensing</small>
+                    </div>
+                    <i class="fas fa-clock fa-2x opacity-75"></i>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card blue">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <h4 class="mb-0">{{ in_progress_dispensing.count }}</h4>
+                        <small>In Progress</small>
+                    </div>
+                    <i class="fas fa-hourglass-half fa-2x opacity-75"></i>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card green">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <h4 class="mb-0">{{ recent_completed.count }}</h4>
+                        <small>Recently Completed</small>
+                    </div>
+                    <i class="fas fa-check-circle fa-2x opacity-75"></i>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <h4 class="mb-0">{{ total_dispensed_today }}</h4>
+                        <small>Dispensed Today</small>
+                    </div>
+                    <i class="fas fa-calendar-day fa-2x opacity-75"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pending Dispensing Section -->
+    {% if pending_dispensing %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="dispensing-card">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0">
+                        <i class="fas fa-exclamation-circle me-2"></i>
+                        Pending Dispensing Requests
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Reference</th>
+                                    <th>BMR</th>
+                                    <th>Product</th>
+                                    <th>Requested Date</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for dispensing in pending_dispensing %}
+                                <tr>
+                                    <td>{{ dispensing.dispensing_reference }}</td>
+                                    <td>
+                                        <a href="{% url 'bmr:detail' dispensing.bmr.id %}" class="bmr-link">
+                                            {{ dispensing.bmr.batch_number }}
+                                        </a>
+                                    </td>
+                                    <td>{{ dispensing.bmr.product.product_name }}</td>
+                                    <td>{{ dispensing.requested_date|date:"M d, Y H:i" }}</td>
+                                    <td>
+                                        <a href="{% url 'raw_materials:start_dispensing' dispensing.id %}" class="btn btn-sm btn-primary">
+                                            <i class="fas fa-play me-1"></i> Start
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- In Progress Dispensing Section -->
+    {% if in_progress_dispensing %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="dispensing-card">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-spinner me-2"></i>
+                        In Progress Dispensing
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Reference</th>
+                                    <th>BMR</th>
+                                    <th>Product</th>
+                                    <th>Started Date</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for dispensing in in_progress_dispensing %}
+                                <tr>
+                                    <td>{{ dispensing.dispensing_reference }}</td>
+                                    <td>
+                                        <a href="{% url 'bmr:detail' dispensing.bmr.id %}" class="bmr-link">
+                                            {{ dispensing.bmr.batch_number }}
+                                        </a>
+                                    </td>
+                                    <td>{{ dispensing.bmr.product.product_name }}</td>
+                                    <td>{{ dispensing.started_date|date:"M d, Y H:i" }}</td>
+                                    <td>
+                                        <a href="{% url 'raw_materials:complete_dispensing' dispensing.id %}" class="btn btn-sm btn-success">
+                                            <i class="fas fa-check me-1"></i> Complete
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Recent Completed Dispensing Section -->
+    {% if recent_completed %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="dispensing-card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-history me-2"></i>
+                        Recently Completed Dispensing
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="accordion" id="recentCompletedAccordion">
+                        {% for dispensing in recent_completed %}
+                        <div class="accordion-item history-item mb-2">
+                            <h2 class="accordion-header" id="heading{{ dispensing.id }}">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" 
+                                   data-bs-target="#collapse{{ dispensing.id }}" aria-expanded="false" 
+                                   aria-controls="collapse{{ dispensing.id }}">
+                                    <div class="row w-100">
+                                        <div class="col-md-3">
+                                            <strong class="bmr-link">{{ dispensing.bmr.batch_number }}</strong>
+                                        </div>
+                                        <div class="col-md-3">
+                                            {{ dispensing.bmr.product.product_name }}
+                                        </div>
+                                        <div class="col-md-3">
+                                            <span class="badge bg-success">Completed</span>
+                                        </div>
+                                        <div class="col-md-3 text-end">
+                                            {{ dispensing.completed_date|date:"M d, Y H:i" }}
+                                        </div>
+                                    </div>
+                                </button>
+                            </h2>
+                            <div id="collapse{{ dispensing.id }}" class="accordion-collapse collapse" 
+                                 aria-labelledby="heading{{ dispensing.id }}" data-bs-parent="#recentCompletedAccordion">
+                                <div class="accordion-body">
+                                    <div class="row mb-3">
+                                        <div class="col-md-6">
+                                            <h6>Dispensing Details:</h6>
+                                            <p><strong>Reference:</strong> {{ dispensing.dispensing_reference }}</p>
+                                            <p><strong>BMR:</strong> 
+                                                <a href="{% url 'bmr:detail' dispensing.bmr.id %}" class="bmr-link">
+                                                    {{ dispensing.bmr.batch_number }}
+                                                </a>
+                                            </p>
+                                            <p><strong>Product:</strong> {{ dispensing.bmr.product.product_name }}</p>
+                                            <p><strong>Batch Size:</strong> {{ dispensing.bmr.batch_size }} {{ dispensing.bmr.batch_size_unit }}</p>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <h6>Timeline:</h6>
+                                            <p><strong>Requested:</strong> {{ dispensing.requested_date|date:"M d, Y H:i" }}</p>
+                                            <p><strong>Started:</strong> {{ dispensing.started_date|date:"M d, Y H:i" }}</p>
+                                            <p><strong>Completed:</strong> {{ dispensing.completed_date|date:"M d, Y H:i" }}</p>
+                                            <p><strong>Duration:</strong> 
+                                                {{ dispensing.completed_date|timeuntil:dispensing.started_date }}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row">
+                                        <div class="col-12">
+                                            <h6>Dispensed Materials:</h6>
+                                            <div class="table-responsive">
+                                                <table class="table table-sm table-bordered">
+                                                    <thead class="table-light">
+                                                        <tr>
+                                                            <th>Material</th>
+                                                            <th>Required Qty</th>
+                                                            <th>Dispensed Qty</th>
+                                                            <th>Batch/Lot</th>
+                                                            <th>Status</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {% for item in dispensing.items.all %}
+                                                        <tr>
+                                                            <td>
+                                                                {% if item.bmr_material.material %}
+                                                                    {{ item.bmr_material.material.material_name }}
+                                                                {% else %}
+                                                                    {{ item.bmr_material.material_name }}
+                                                                {% endif %}
+                                                                <br>
+                                                                <small class="text-muted">{{ item.bmr_material.material_code }}</small>
+                                                            </td>
+                                                            <td>{{ item.required_quantity }} 
+                                                                {% if item.bmr_material.material %}
+                                                                    {{ item.bmr_material.material.unit_of_measure }}
+                                                                {% else %}
+                                                                    {{ item.bmr_material.unit_of_measure }}
+                                                                {% endif %}
+                                                            </td>
+                                                            <td>{{ item.dispensed_quantity }} 
+                                                                {% if item.bmr_material.material %}
+                                                                    {{ item.bmr_material.material.unit_of_measure }}
+                                                                {% else %}
+                                                                    {{ item.bmr_material.unit_of_measure }}
+                                                                {% endif %}
+                                                            </td>
+                                                            <td>{{ item.material_batch.batch_number }}</td>
+                                                            <td>
+                                                                {% if item.is_dispensed %}
+                                                                    <span class="badge bg-success">Dispensed</span>
+                                                                {% else %}
+                                                                    <span class="badge bg-warning">Pending</span>
+                                                                {% endif %}
+                                                            </td>
+                                                        </tr>
+                                                        {% empty %}
+                                                        <tr>
+                                                            <td colspan="5" class="text-center">No materials dispensed</td>
+                                                        </tr>
+                                                        {% endfor %}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    {% if dispensing.dispensing_notes %}
+                                    <div class="row mt-3">
+                                        <div class="col-12">
+                                            <h6>Notes:</h6>
+                                            <div class="alert alert-info">
+                                                {{ dispensing.dispensing_notes }}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                    
+                                    <div class="row mt-3">
+                                        <div class="col-12">
+                                            <a href="{% url 'bmr:detail' dispensing.bmr.id %}" class="btn btn-primary">
+                                                <i class="fas fa-eye me-1"></i> View Full BMR Details
+                                            </a>
+                                            <a href="#" class="btn btn-secondary ms-2" onclick="window.print()">
+                                                <i class="fas fa-print me-1"></i> Print Dispensing Record
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Success Messages -->
+{% if messages %}
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+    {% for message in messages %}
+    <div class="toast show" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="toast-header 
+            {% if message.tags == 'success' %}bg-success text-white
+            {% elif message.tags == 'error' %}bg-danger text-white
+            {% else %}bg-info text-white{% endif %}">
+            <strong class="me-auto">
+                {% if message.tags == 'success' %}
+                <i class="fas fa-check-circle me-1"></i>Success
+                {% elif message.tags == 'error' %}
+                <i class="fas fa-exclamation-triangle me-1"></i>Error
+                {% else %}
+                <i class="fas fa-info-circle me-1"></i>Info
+                {% endif %}
+            </strong>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
+        </div>
+        <div class="toast-body">
+            {{ message }}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Initialize tooltips
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+
+    // Auto-hide toasts after 5 seconds
+    setTimeout(function() {
+        $('.toast').toast('hide');
+    }, 5000);
+</script>
+{% endblock %}
