@@ -247,6 +247,8 @@ class BMRMaterial(models.Model):
     """Materials required for BMR production"""
     
     bmr = models.ForeignKey(BMR, on_delete=models.CASCADE, related_name='materials')
+    # Add ForeignKey to RawMaterial
+    material = models.ForeignKey('raw_materials.RawMaterial', on_delete=models.SET_NULL, null=True, related_name='bmr_materials')
     material_name = models.CharField(max_length=200)
     material_code = models.CharField(max_length=50)
     required_quantity = models.DecimalField(max_digits=10, decimal_places=4)

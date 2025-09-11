@@ -99,6 +99,14 @@
                                 <td>{{ bmr.created_date|date:"F d, Y g:i A" }}</td>
                             </tr>
                             <tr>
+                                <td><strong>Manufacture Date:</strong></td>
+                                <td>{{ bmr.manufacture_date|date:"F d, Y" }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Expiry Date:</strong></td>
+                                <td>{{ bmr.expiry_date|date:"F d, Y" }}</td>
+                            </tr>
+                            <tr>
                                 <td><strong>Created By:</strong></td>
                                 <td>
                                     {{ bmr.created_by.get_full_name|default:bmr.created_by.username }}
@@ -154,9 +162,9 @@
                         <tbody>
                             {% for material in materials %}
                             <tr>
-                                <td>{{ material.material.material_name }}</td>
+                                <td>{% if material.material %}{{ material.material.material_name }}{% else %}{{ material.material_name }}{% endif %}</td>
                                 <td>{{ material.required_quantity|floatformat:2 }}</td>
-                                <td>{{ material.unit }}</td>
+                                <td>{% if material.material %}{{ material.material.unit_of_measure }}{% else %}{{ material.unit_of_measure }}{% endif %}</td>
                                 <td>
                                     {% if material.dispensed_quantity %}
                                         <span class="badge bg-success">Dispensed</span>
