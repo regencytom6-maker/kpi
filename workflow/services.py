@@ -308,6 +308,10 @@ class WorkflowService:
             failed_execution.completed_date = timezone.now()
             failed_execution.save()
             
+            print(f"\n*** HANDLING QC FAILURE ROLLBACK FOR BMR {bmr.bmr_number} ***")
+            print(f"Failed phase: {failed_phase_name}")
+            print(f"Rolling back to: {rollback_to_phase}")
+            
             # Reset phases after the rollback point to pending
             # Find the rollback phase order
             rollback_phase = BatchPhaseExecution.objects.get(
@@ -315,12 +319,46 @@ class WorkflowService:
                 phase__phase_name=rollback_to_phase
             )
             
+            print(f"Found rollback phase: {rollback_phase.phase.phase_name} (ID: {rollback_phase.id})")
+            
+            # Get all phases in sequence between rollback and QC phase
+            phases_in_sequence = []
+            if failed_phase_name == 'post_compression_qc' and rollback_to_phase == 'granulation':
+                # For post_compression_qc failures, ensure we maintain the proper sequence
+                sequence = ['granulation', 'blending', 'compression', 'post_compression_qc']
+                
+                # Find all phases in the proper sequence
+                for phase_name in sequence:
+                    phase = BatchPhaseExecution.objects.filter(
+                        bmr=bmr,
+                        phase__phase_name=phase_name
+                    ).first()
+                    if phase:
+                        phases_in_sequence.append(phase)
+                        print(f"Added {phase_name} phase to sequence (ID: {phase.id})")
+            
             # Reset all phases after the rollback phase to pending
-            phases_to_reset = BatchPhaseExecution.objects.filter(
-                bmr=bmr,
-                phase__phase_order__gt=rollback_phase.phase.phase_order,
-                status__in=['completed', 'failed', 'in_progress']
-            )
+            # If phases_in_sequence is populated, we'll handle those specially
+            if phases_in_sequence:
+                # Only reset phases that aren't in our sequence
+                phases_to_reset = BatchPhaseExecution.objects.filter(
+                    bmr=bmr,
+                    phase__phase_order__gt=rollback_phase.phase.phase_order,
+                    phase__phase_name__isnull=True  # This will be replaced below
+                )
+                # Exclude the sequence phases from general reset
+                sequence_phase_names = [p.phase.phase_name for p in phases_in_sequence]
+                phases_to_reset = BatchPhaseExecution.objects.filter(
+                    bmr=bmr,
+                    phase__phase_order__gt=rollback_phase.phase.phase_order
+                ).exclude(phase__phase_name__in=sequence_phase_names)
+            else:
+                # Original logic - reset all phases after rollback
+                phases_to_reset = BatchPhaseExecution.objects.filter(
+                    bmr=bmr,
+                    phase__phase_order__gt=rollback_phase.phase.phase_order,
+                    status__in=['completed', 'failed', 'in_progress']
+                )
             
             for phase_execution in phases_to_reset:
                 phase_execution.status = 'pending'
@@ -330,6 +368,7 @@ class WorkflowService:
                 phase_execution.completed_date = None
                 phase_execution.operator_comments = ''
                 phase_execution.save()
+                print(f"Reset phase {phase_execution.phase.phase_name} to pending (ID: {phase_execution.id})")
             
             # Set the rollback phase to pending (to be redone)
             rollback_phase.status = 'pending'
@@ -337,8 +376,53 @@ class WorkflowService:
             rollback_phase.started_date = None
             rollback_phase.completed_by = None
             rollback_phase.completed_date = None
-            rollback_phase.operator_comments = ''
+            # Add a clear comment indicating this is a reprocessing after QC failure
+            rollback_phase.operator_comments = f'Reprocessing required after {failed_phase_name} failure'
             rollback_phase.save()
+            
+            print(f"Reset {rollback_to_phase} phase to pending for reprocessing (ID: {rollback_phase.id})")
+            
+            # For post_compression_QC failures, special handling to ensure proper sequence
+            if phases_in_sequence:
+                print(f"Special handling for post_compression_QC failure - ensuring proper sequence")
+                # Start with granulation (already handled above - set to pending)
+                
+                # Next is blending - set to not_ready so granulation will activate it
+                blending_phase = next((p for p in phases_in_sequence if p.phase.phase_name == 'blending'), None)
+                if blending_phase:
+                    blending_phase.status = 'not_ready'  # Will be activated after granulation completes
+                    blending_phase.started_by = None
+                    blending_phase.started_date = None
+                    blending_phase.completed_by = None
+                    blending_phase.completed_date = None
+                    blending_phase.save()
+                    print(f"Reset blending phase to not_ready for BMR {bmr.batch_number}")
+                
+                # Then compression - set to not_ready so blending will activate it
+                compression_phase = next((p for p in phases_in_sequence if p.phase.phase_name == 'compression'), None)
+                if compression_phase:
+                    compression_phase.status = 'not_ready'  # Will be activated after blending completes
+                    compression_phase.started_by = None
+                    compression_phase.started_date = None
+                    compression_phase.completed_by = None
+                    compression_phase.completed_date = None
+                    compression_phase.save()
+                    print(f"Reset compression phase to not_ready for BMR {bmr.batch_number}")
+                    
+                # Then post-compression QC - set to not_ready so compression will activate it
+                post_comp_qc_phase = next((p for p in phases_in_sequence if p.phase.phase_name == 'post_compression_qc'), None)
+                if post_comp_qc_phase and post_comp_qc_phase.id != failed_execution.id:  # Don't reset the one we just marked as failed
+                    post_comp_qc_phase.status = 'not_ready'  # Will be activated after compression completes
+                    post_comp_qc_phase.started_by = None
+                    post_comp_qc_phase.started_date = None
+                    post_comp_qc_phase.completed_by = None
+                    post_comp_qc_phase.completed_date = None
+                    post_comp_qc_phase.save()
+                    print(f"Reset post-compression QC phase to not_ready for BMR {bmr.batch_number}")
+                else:
+                    print(f"The failed QC phase is maintained as 'failed' to track the failure history")
+                
+                # Failed QC phase already handled above
             
             return True
             
@@ -354,6 +438,65 @@ class WorkflowService:
                 bmr=bmr,
                 phase=current_phase
             )
+            
+            # NEW: Handle material_dispensing completion to reduce raw material quantities
+            if current_execution.phase.phase_name == 'material_dispensing' and current_execution.status == 'completed':
+                print(f"Completed material dispensing for BMR {bmr.batch_number}, processing material quantities...")
+                
+                # Import necessary models here to avoid circular imports
+                from raw_materials.models import MaterialDispensing, MaterialDispensingItem
+                
+                # Get or create the dispensing record
+                dispensing, created = MaterialDispensing.objects.get_or_create(
+                    bmr=bmr,
+                    defaults={'status': 'pending'}
+                )
+                
+                # Set the dispensing record to completed
+                dispensing.status = 'completed'
+                dispensing.dispensed_by = current_execution.completed_by
+                dispensing.completed_date = current_execution.completed_date
+                dispensing.dispensing_notes = f"Dispensing completed by {current_execution.completed_by.get_full_name() if current_execution.completed_by else 'system'}"
+                
+                # Make sure all materials have dispensing items
+                bmr_materials = bmr.materials.all()
+                print(f"Found {bmr_materials.count()} materials to dispense for BMR {bmr.batch_number}")
+                
+                # Flag to track if we should process the dispensing completion
+                items_created = False
+                
+                # Make sure each material has a dispensing item
+                for bmr_material in bmr_materials:
+                    # Check if a dispensing item already exists
+                    dispensing_item = MaterialDispensingItem.objects.filter(
+                        dispensing=dispensing,
+                        bmr_material=bmr_material
+                    ).first()
+                    
+                    if not dispensing_item:
+                        # Find a suitable batch for this material
+                        suitable_batch = bmr_material.get_suitable_batch()
+                        
+                        if suitable_batch:
+                            # Create a new dispensing item
+                            MaterialDispensingItem.objects.create(
+                                dispensing=dispensing,
+                                bmr_material=bmr_material,
+                                material_batch=suitable_batch,
+                                required_quantity=bmr_material.required_quantity,
+                                dispensed_quantity=bmr_material.required_quantity,
+                                is_dispensed=False  # Will be set to True by process_dispensing_completion
+                            )
+                            items_created = True
+                            print(f"Created dispensing item for {bmr_material.material_name}")
+                        else:
+                            print(f"WARNING: No suitable batch found for {bmr_material.material_name}")
+                
+                # Set _complete_dispensing flag to trigger process_dispensing_completion
+                dispensing._complete_dispensing = True
+                dispensing.save()
+                
+                print(f"Material dispensing processed for BMR {bmr.batch_number}")
             
             # NEW: Handle raw material release -> material dispensing transition
             if current_execution.phase.phase_name == 'raw_material_release':
@@ -502,6 +645,268 @@ class WorkflowService:
                         print(f"WARNING: No secondary_packaging phase found for tablet_2 BMR {bmr.batch_number}")
                         return False
             
+            # Special handling for reprocessing: when completing granulation after post_compression_QC failure
+            if current_execution.phase.phase_name == 'granulation':
+                # Check if this is a reprocessing case (has a failed post_compression_QC)
+                failed_qc = BatchPhaseExecution.objects.filter(
+                    bmr=bmr,
+                    phase__phase_name='post_compression_qc',
+                    status='failed'
+                ).exists()
+                
+                print(f"\n*** Checking for reprocessing: {bmr.bmr_number}, Failed QC: {failed_qc} ***")
+                
+                if failed_qc:
+                    print(f"\n*** REPROCESSING DETECTED: Completing granulation for BMR {bmr.bmr_number} after QC failure ***")
+                    # Special handling - explicitly activate blending
+                    blending_phase = BatchPhaseExecution.objects.filter(
+                        bmr=bmr,
+                        phase__phase_name='blending'
+                    ).first()
+                    
+                    if blending_phase:
+                        print(f"Activating blending phase for reprocessing: {blending_phase.id}, current status: {blending_phase.status}")
+                        blending_phase.status = 'pending'
+                        blending_phase.save()
+                        print(f"Blending phase activated for BMR {bmr.bmr_number}")
+                        return True  # Important: Return here to prevent standard logic from running
+                    else:
+                        print(f"WARNING: No blending phase found for BMR {bmr.bmr_number}")
+                        print(f"Activated blending phase after granulation reprocessing")
+                        return True
+            
+            # Special handling for blending after reprocessing 
+            if current_execution.phase.phase_name == 'blending':
+                # Check for different types of QC failures based on product type
+                if bmr.product.product_type in ['tablet', 'tablet_normal', 'tablet_2']:
+                    # For tablets, check for post_compression_qc failures
+                    failed_qc = BatchPhaseExecution.objects.filter(
+                        bmr=bmr,
+                        phase__phase_name='post_compression_qc',
+                        status='failed'
+                    ).exists()
+                elif bmr.product.product_type == 'capsule':
+                    # For capsules, check for post_blending_qc failures
+                    failed_qc = BatchPhaseExecution.objects.filter(
+                        bmr=bmr,
+                        phase__phase_name='post_blending_qc',
+                        status='failed'
+                    ).exists()
+                else:
+                    failed_qc = False
+                
+                # For tablets, activate compression next
+                if failed_qc and bmr.product.product_type in ['tablet', 'tablet_normal', 'tablet_2']:
+                    print(f"\n*** REPROCESSING PATH: Completing blending for tablet BMR {bmr.bmr_number} after QC failure ***")
+                    # Special handling - explicitly activate compression
+                    compression_phase = BatchPhaseExecution.objects.filter(
+                        bmr=bmr,
+                        phase__phase_name='compression'
+                    ).first()
+                    
+                    if compression_phase:
+                        print(f"Activating compression phase for reprocessing: {compression_phase.id}, current status: {compression_phase.status}")
+                        compression_phase.status = 'pending'
+                        compression_phase.save()
+                        print(f"Compression phase activated for BMR {bmr.bmr_number} after reprocessing")
+                        return True  # Important: Return here to prevent standard logic from running
+                    else:
+                        print(f"WARNING: No compression phase found for BMR {bmr.bmr_number}")
+                        return False
+                
+                # For capsules, activate post_blending_qc next
+                elif failed_qc and bmr.product.product_type == 'capsule':
+                    print(f"\n*** REPROCESSING PATH: Completing blending for capsule BMR {bmr.bmr_number} after QC failure ***")
+                    # Special handling - explicitly activate post_blending_qc
+                    qc_phase = BatchPhaseExecution.objects.filter(
+                        bmr=bmr,
+                        phase__phase_name='post_blending_qc'
+                    ).first()
+                    
+                    if qc_phase:
+                        print(f"Activating post_blending_qc phase for reprocessing: {qc_phase.id}, current status: {qc_phase.status}")
+                        qc_phase.status = 'pending'
+                        qc_phase.save()
+                        print(f"Post-blending QC phase activated for capsule BMR {bmr.bmr_number} after reprocessing")
+                        return True  # Important: Return here to prevent standard logic from running
+                    else:
+                        print(f"WARNING: No post_blending_qc phase found for BMR {bmr.bmr_number}")
+                        return False
+            
+            # Special handling for mixing after reprocessing - ensure post_mixing_qc is activated next
+            if current_execution.phase.phase_name == 'mixing':
+                # Check if this is a reprocessing case (has a failed post_mixing_QC)
+                failed_qc = BatchPhaseExecution.objects.filter(
+                    bmr=bmr,
+                    phase__phase_name='post_mixing_qc',
+                    status='failed'
+                ).exists()
+                
+                if failed_qc and bmr.product.product_type == 'ointment':
+                    print(f"\n*** REPROCESSING PATH: Completing mixing for BMR {bmr.bmr_number} after QC failure ***")
+                    # Special handling - explicitly activate post_mixing_qc
+                    qc_phase = BatchPhaseExecution.objects.filter(
+                        bmr=bmr,
+                        phase__phase_name='post_mixing_qc'
+                    ).first()
+                    
+                    if qc_phase:
+                        print(f"Activating post_mixing_qc phase for reprocessing: {qc_phase.id}, current status: {qc_phase.status}")
+                        qc_phase.status = 'pending'
+                        qc_phase.save()
+                        print(f"Post-mixing QC phase activated for BMR {bmr.bmr_number} after reprocessing")
+                        return True  # Important: Return here to prevent standard logic from running
+                    else:
+                        print(f"WARNING: No post_mixing_qc phase found for BMR {bmr.bmr_number}")
+                        return False
+            
+            # Special handling for compression after reprocessing - ensure post_compression_qc is activated next
+            if current_execution.phase.phase_name == 'compression':
+                # Check if this is a reprocessing case (has a failed post_compression_QC)
+                failed_qc = BatchPhaseExecution.objects.filter(
+                    bmr=bmr,
+                    phase__phase_name='post_compression_qc',
+                    status='failed'
+                ).exists()
+                
+                if failed_qc and bmr.product.product_type == 'tablet':
+                    print(f"\n*** REPROCESSING PATH: Completing compression for BMR {bmr.bmr_number} after QC failure ***")
+                    # Special handling - explicitly activate post_compression_qc
+                    qc_phase = BatchPhaseExecution.objects.filter(
+                        bmr=bmr,
+                        phase__phase_name='post_compression_qc'
+                    ).first()
+                    
+                    if qc_phase:
+                        print(f"Activating post_compression_qc phase for reprocessing: {qc_phase.id}, current status: {qc_phase.status}")
+                        qc_phase.status = 'pending'
+                        qc_phase.save()
+                        print(f"Post-compression QC phase activated for BMR {bmr.bmr_number} after reprocessing")
+                        return True  # Important: Return here to prevent standard logic from running
+                    else:
+                        print(f"WARNING: No post_compression_qc phase found for BMR {bmr.bmr_number}")
+                        return False
+            
+            # Special handling for post_blending_qc for capsules - ensure filling is activated next
+            if current_execution.phase.phase_name == 'post_blending_qc' and bmr.product.product_type == 'capsule':
+                # Check if there was a previous failure of this QC phase
+                previous_failures = BatchPhaseExecution.objects.filter(
+                    bmr=bmr,
+                    phase__phase_name='post_blending_qc',
+                    status='failed'
+                ).exists()
+                
+                if previous_failures:
+                    print(f"\n*** REPROCESSING SUCCESS PATH: Post-blending QC passed for capsule BMR {bmr.bmr_number} after previous failure ***")
+                    # Special handling - explicitly activate filling phase
+                    filling_phase = BatchPhaseExecution.objects.filter(
+                        bmr=bmr,
+                        phase__phase_name='filling'
+                    ).first()
+                    
+                    if filling_phase:
+                        print(f"Activating filling phase after successful reprocessing QC: {filling_phase.id}, current status: {filling_phase.status}")
+                        filling_phase.status = 'pending'
+                        filling_phase.save()
+                        print(f"Filling phase activated for BMR {bmr.bmr_number} after successful QC reprocessing")
+                        
+                        # Mark the previously failed QC phase as resolved
+                        failed_qc_phases = BatchPhaseExecution.objects.filter(
+                            bmr=bmr,
+                            phase__phase_name='post_blending_qc',
+                            status='failed'
+                        )
+                        for failed_qc in failed_qc_phases:
+                            failed_qc.status = 'resolved'
+                            failed_qc.operator_comments += " | RESOLVED by successful retest"
+                            failed_qc.save()
+                            print(f"Marked previously failed QC phase {failed_qc.id} as resolved")
+                        
+                        return True  # Important: Return here to prevent standard logic from running
+                    else:
+                        print(f"WARNING: No filling phase found for BMR {bmr.bmr_number}")
+                        return False
+            
+            # Special handling for post_mixing_qc for ointments - ensure tube_filling is activated next
+            if current_execution.phase.phase_name == 'post_mixing_qc' and bmr.product.product_type == 'ointment':
+                # Check if there was a previous failure of this QC phase
+                previous_failures = BatchPhaseExecution.objects.filter(
+                    bmr=bmr,
+                    phase__phase_name='post_mixing_qc',
+                    status='failed'
+                ).exists()
+                
+                if previous_failures:
+                    print(f"\n*** REPROCESSING SUCCESS PATH: Post-mixing QC passed for ointment BMR {bmr.bmr_number} after previous failure ***")
+                    # Special handling - explicitly activate tube_filling phase
+                    tube_filling_phase = BatchPhaseExecution.objects.filter(
+                        bmr=bmr,
+                        phase__phase_name='tube_filling'
+                    ).first()
+                    
+                    if tube_filling_phase:
+                        print(f"Activating tube filling phase after successful reprocessing QC: {tube_filling_phase.id}, current status: {tube_filling_phase.status}")
+                        tube_filling_phase.status = 'pending'
+                        tube_filling_phase.save()
+                        print(f"Tube filling phase activated for BMR {bmr.bmr_number} after successful QC reprocessing")
+                        
+                        # Mark the previously failed QC phase as resolved
+                        failed_qc_phases = BatchPhaseExecution.objects.filter(
+                            bmr=bmr,
+                            phase__phase_name='post_mixing_qc',
+                            status='failed'
+                        )
+                        for failed_qc in failed_qc_phases:
+                            failed_qc.status = 'resolved'
+                            failed_qc.operator_comments += " | RESOLVED by successful retest"
+                            failed_qc.save()
+                            print(f"Marked previously failed QC phase {failed_qc.id} as resolved")
+                        
+                        return True  # Important: Return here to prevent standard logic from running
+                    else:
+                        print(f"WARNING: No tube filling phase found for BMR {bmr.bmr_number}")
+                        return False
+            
+            # Special handling for post_compression_qc after reprocessing - ensure sorting is activated next
+            if current_execution.phase.phase_name == 'post_compression_qc':
+                # Check if there was a previous failure of this QC phase
+                previous_failures = BatchPhaseExecution.objects.filter(
+                    bmr=bmr,
+                    phase__phase_name='post_compression_qc',
+                    status='failed'
+                ).exists()
+                
+                if previous_failures and bmr.product.product_type in ['tablet', 'tablet_normal', 'tablet_2']:
+                    print(f"\n*** REPROCESSING SUCCESS PATH: Post-compression QC passed for BMR {bmr.bmr_number} after previous failure ***")
+                    # Special handling - explicitly activate sorting phase
+                    sorting_phase = BatchPhaseExecution.objects.filter(
+                        bmr=bmr,
+                        phase__phase_name='sorting'
+                    ).first()
+                    
+                    if sorting_phase:
+                        print(f"Activating sorting phase after successful reprocessing QC: {sorting_phase.id}, current status: {sorting_phase.status}")
+                        sorting_phase.status = 'pending'
+                        sorting_phase.save()
+                        print(f"Sorting phase activated for BMR {bmr.bmr_number} after successful QC reprocessing")
+                        
+                        # Mark the previously failed QC phase as resolved
+                        failed_qc_phases = BatchPhaseExecution.objects.filter(
+                            bmr=bmr,
+                            phase__phase_name='post_compression_qc',
+                            status='failed'
+                        )
+                        for failed_qc in failed_qc_phases:
+                            failed_qc.status = 'resolved'
+                            failed_qc.operator_comments += " | RESOLVED by successful retest"
+                            failed_qc.save()
+                            print(f"Marked previously failed QC phase {failed_qc.id} as resolved")
+                        
+                        return True  # Important: Return here to prevent standard logic from running
+                    else:
+                        print(f"WARNING: No sorting phase found for BMR {bmr.bmr_number}")
+                        return False
+            
             # Standard next phase logic for ALL other cases
             # This will only run if none of the special cases above returned True
             all_next = BatchPhaseExecution.objects.filter(
@@ -542,7 +947,7 @@ class WorkflowService:
         try:
             # Define QC rollback mapping
             qc_rollback_mapping = {
-                'post_compression_qc': 'blending',  # Roll back to blending, not compression
+                'post_compression_qc': 'granulation',  # Roll back to granulation for tablet QC failures
                 'post_mixing_qc': 'mixing',
                 'post_blending_qc': 'blending',
             }
@@ -550,8 +955,14 @@ class WorkflowService:
             failed_phase_name = failed_phase.phase_name
             rollback_to_phase = qc_rollback_mapping.get(failed_phase_name)
             
+            print(f"\n*** QC FAILURE: {bmr.bmr_number} ***")
+            print(f"Failed phase: {failed_phase_name}")
+            print(f"Rolling back to: {rollback_to_phase}")
+            
             if rollback_to_phase:
-                return cls.handle_qc_failure_rollback(bmr, failed_phase_name, rollback_to_phase)
+                result = cls.handle_qc_failure_rollback(bmr, failed_phase_name, rollback_to_phase)
+                print(f"Rollback result: {'SUCCESS' if result else 'FAILURE'}")
+                return result
             
             return False
         except Exception as e:
@@ -584,8 +995,92 @@ class WorkflowService:
         
         allowed_phases = role_phase_mapping.get(user_role, [])
         
-        return BatchPhaseExecution.objects.filter(
+        # Check if there are any failed QC phases that would roll back to this user's responsibility
+        has_rollback = False
+        if user_role == 'granulation_operator':
+            # Check if there's a failed post_compression_qc
+            has_rollback = BatchPhaseExecution.objects.filter(
+                bmr=bmr,
+                phase__phase_name='post_compression_qc',
+                status='failed'
+            ).exists()
+            
+        elif user_role == 'mixing_operator':
+            # Check if there's a failed post_mixing_qc
+            has_rollback = BatchPhaseExecution.objects.filter(
+                bmr=bmr,
+                phase__phase_name='post_mixing_qc',
+                status='failed'
+            ).exists()
+            
+        elif user_role == 'blending_operator':
+            # Check if there's a failed post_blending_qc
+            has_rollback = BatchPhaseExecution.objects.filter(
+                bmr=bmr,
+                phase__phase_name='post_blending_qc',
+                status='failed'
+            ).exists()
+        
+        # Standard query for user's phases
+        phases = BatchPhaseExecution.objects.filter(
             bmr=bmr,
             phase__phase_name__in=allowed_phases,
             status__in=['pending', 'in_progress']
         ).select_related('phase').order_by('phase__phase_order')
+        
+        # If there's a rollback situation, we need special handling
+        if has_rollback:
+            # For failed QC phases, we need to check if the phase is still in the list
+            # If not, we need to add it back to the list manually
+            
+            # Handle capsules - need to reactivate blending after post_blending_qc failure
+            if user_role == 'blending_operator' and bmr.product.product_type == 'capsule':
+                # Check if there's a blending phase in the list
+                has_blending = any(p.phase.phase_name == 'blending' for p in phases)
+                
+                if not has_blending:
+                    # Find the blending phase for this BMR
+                    blending_phase = BatchPhaseExecution.objects.filter(
+                        bmr=bmr,
+                        phase__phase_name='blending'
+                    ).first()
+                    
+                    if blending_phase:
+                        # Reset it to pending if it's not already
+                        if blending_phase.status not in ['pending', 'in_progress']:
+                            blending_phase.status = 'pending'
+                            blending_phase.save()
+                            print(f"Reset blending phase to pending for capsule BMR {bmr.bmr_number} after QC failure")
+                        
+                        # Add it to the phases list
+                        phases = list(phases)
+                        phases.append(blending_phase)
+            
+            # Handle ointments - need to reactivate mixing after post_mixing_qc failure
+            elif user_role == 'mixing_operator' and bmr.product.product_type == 'ointment':
+                # Check if there's a mixing phase in the list
+                has_mixing = any(p.phase.phase_name == 'mixing' for p in phases)
+                
+                if not has_mixing:
+                    # Find the mixing phase for this BMR
+                    mixing_phase = BatchPhaseExecution.objects.filter(
+                        bmr=bmr,
+                        phase__phase_name='mixing'
+                    ).first()
+                    
+                    if mixing_phase:
+                        # Reset it to pending if it's not already
+                        if mixing_phase.status not in ['pending', 'in_progress']:
+                            mixing_phase.status = 'pending'
+                            mixing_phase.save()
+                            print(f"Reset mixing phase to pending for ointment BMR {bmr.bmr_number} after QC failure")
+                        
+                        # Add it to the phases list
+                        phases = list(phases)
+                        phases.append(mixing_phase)
+            
+            # Mark all phases as reprocessing
+            for phase in phases:
+                phase.is_reprocessing = True
+                
+        return phases

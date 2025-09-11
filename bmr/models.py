@@ -56,8 +56,33 @@ class BMR(models.Model):
     actual_start_date = models.DateTimeField(null=True, blank=True)
     actual_completion_date = models.DateTimeField(null=True, blank=True)
     
+    # Manufacturing and Expiry Dates
+    manufacture_date = models.DateField(
+        null=True, 
+        blank=True,
+        help_text="Date of manufacture for this batch"
+    )
+    expiry_date = models.DateField(
+        null=True, 
+        blank=True,
+        help_text="Expiry date for this batch"
+    )
+    
     # Status and Approval
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
+    
+    # Material Status
+    MATERIAL_STATUS_CHOICES = [
+        ('pending', 'Pending Dispensing'),
+        ('dispensing', 'Dispensing in Progress'),
+        ('dispensed', 'Materials Dispensed'),
+        ('returned', 'Materials Returned')
+    ]
+    material_status = models.CharField(
+        max_length=20, 
+        choices=MATERIAL_STATUS_CHOICES, 
+        default='pending'
+    )
     
     # Personnel
     created_by = models.ForeignKey(
@@ -73,6 +98,17 @@ class BMR(models.Model):
         related_name='approved_bmrs'
     )
     approved_date = models.DateTimeField(null=True, blank=True)
+    
+    # Materials QC Approval
+    materials_approved = models.BooleanField(default=False)
+    materials_approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='materials_approved_bmrs'
+    )
+    materials_approved_date = models.DateTimeField(null=True, blank=True)
     
     # Manufacturing Instructions
     manufacturing_instructions = models.TextField(blank=True)
@@ -122,6 +158,10 @@ class BMR(models.Model):
         # Save the BMR first
         super().save(*args, **kwargs)
         
+        # Create BMR materials from product materials if this is a new BMR with a product
+        if is_new and self.product:
+            self.create_materials_from_product()
+        
         # Initialize workflow when BMR is created or when status changes to approved
         if is_new or (old_status != 'approved' and self.status == 'approved'):
             from workflow.services import WorkflowService
@@ -169,6 +209,40 @@ class BMR(models.Model):
                 return candidate
             next_num += 1
 
+    def create_materials_from_product(self):
+        """Create BMR materials from product materials"""
+        if not self.product:
+            return
+            
+        from products.models import ProductMaterial
+        
+        # Get product materials
+        product_materials = ProductMaterial.objects.filter(product=self.product)
+        if not product_materials.exists():
+            return
+            
+        print(f"Creating {product_materials.count()} BMR materials for BMR {self.bmr_number}")
+        
+        # Create BMR materials
+        for pm in product_materials:
+            try:
+                material = pm.raw_material
+                
+                # Skip if this material already exists for this BMR
+                if BMRMaterial.objects.filter(bmr=self, material_code=material.material_code).exists():
+                    continue
+                    
+                bmr_material = BMRMaterial.objects.create(
+                    bmr=self,
+                    material_code=material.material_code,
+                    material_name=material.material_name,
+                    required_quantity=pm.required_quantity,
+                    unit_of_measure=pm.unit_of_measure
+                )
+                print(f"Created BMR material {bmr_material.id} for {material.material_name}")
+            except Exception as e:
+                print(f"Error creating BMR material: {str(e)}")
+
 class BMRMaterial(models.Model):
     """Materials required for BMR production"""
     
@@ -191,6 +265,27 @@ class BMRMaterial(models.Model):
     )
     dispensed_date = models.DateTimeField(null=True, blank=True)
     is_dispensed = models.BooleanField(default=False)
+    
+    def get_suitable_batch(self):
+        """Find a suitable raw material batch for this BMR material"""
+        try:
+            # Import here to avoid circular imports
+            from raw_materials.models import RawMaterial, RawMaterialBatch
+            
+            # Find the raw material by code
+            raw_material = RawMaterial.objects.get(material_code=self.material_code)
+            
+            # Find a suitable batch with enough quantity
+            suitable_batch = RawMaterialBatch.objects.filter(
+                material=raw_material,
+                status='approved',
+                quantity_remaining__gte=self.required_quantity
+            ).order_by('expiry_date').first()
+            
+            return suitable_batch
+        except Exception as e:
+            print(f"Error finding suitable batch for {self.material_name}: {str(e)}")
+            return None
     
     def __str__(self):
         return f"{self.bmr.bmr_number} - {self.material_name}"
