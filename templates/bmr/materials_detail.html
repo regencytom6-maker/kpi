@@ -1,0 +1,124 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }} - Kampala Pharmaceutical Industries{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{% url 'dashboards:dashboard_home' %}">Dashboard</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'bmr:list' %}">BMRs</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'bmr:detail' bmr.id %}">{{ bmr.batch_number }}</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Material Details</li>
+                </ol>
+            </nav>
+            
+            <div class="d-flex justify-content-between align-items-center">
+                <h2 class="text-primary">
+                    <i class="fas fa-boxes me-2"></i>{{ title }}
+                </h2>
+                <a href="{% url 'bmr:detail' bmr.id %}" class="btn btn-primary">
+                    <i class="fas fa-arrow-left me-1"></i>Back to BMR
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <!-- BMR Information Card -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-info-circle me-2"></i>BMR Information
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <p class="mb-1"><strong>BMR Number:</strong></p>
+                            <p>{{ bmr.bmr_number }}</p>
+                        </div>
+                        <div class="col-md-3">
+                            <p class="mb-1"><strong>Batch Number:</strong></p>
+                            <p>{{ bmr.batch_number }}</p>
+                        </div>
+                        <div class="col-md-3">
+                            <p class="mb-1"><strong>Product:</strong></p>
+                            <p>{{ bmr.product.product_name }}</p>
+                        </div>
+                        <div class="col-md-3">
+                            <p class="mb-1"><strong>Batch Size:</strong></p>
+                            <p>{{ bmr.batch_size }} {{ bmr.product.unit_of_measure }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Materials Table -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-clipboard-list me-2"></i>Exact Material Details
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-bordered">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th style="width: 25%">Material</th>
+                                    <th style="width: 15%">Code</th>
+                                    <th style="width: 15%">Required Quantity</th>
+                                    <th style="width: 15%">Dispensed Quantity</th>
+                                    <th style="width: 15%">Batch/Lot Number</th>
+                                    <th style="width: 15%">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for material in materials %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ material.name }}</strong>
+                                    </td>
+                                    <td>{{ material.code }}</td>
+                                    <td>{{ material.required }} {{ material.unit }}</td>
+                                    <td>{% if material.dispensed %}{{ material.dispensed }} {{ material.unit }}{% else %}-{% endif %}</td>
+                                    <td>{{ material.batch_lot|default:"-" }}</td>
+                                    <td>
+                                        {% if material.is_dispensed %}
+                                        <span class="badge bg-success">Dispensed</span>
+                                        {% else %}
+                                        <span class="badge bg-warning">Pending</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="6" class="text-center">
+                                        <p class="text-muted">No materials found for this BMR.</p>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <small class="text-muted">
+                        <i class="fas fa-info-circle me-1"></i>
+                        This page shows the exact details of materials required for BMR {{ bmr.batch_number }}.
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

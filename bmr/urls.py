@@ -2,7 +2,7 @@ from django.urls import path
 from .views import (
     create_bmr_view, bmr_list_view, bmr_detail_view,
     start_phase_view, complete_phase_view, reject_phase_view,
-    check_product_materials
+    check_product_materials, materials_detail_view
 )
 from .views_regulatory import start_bmr_production
 from .api_views import bmr_materials_api
@@ -19,4 +19,5 @@ urlpatterns = [
     path('<int:bmr_id>/start-production/', start_bmr_production, name='start_bmr_production'),
     path('check-product-materials/', check_product_materials, name='check_product_materials'),
     path('api/materials/<int:bmr_id>/', bmr_materials_api, name='bmr_materials_api'),
+    path('materials/<int:bmr_id>/', materials_detail_view, name='materials_detail'),
 ]

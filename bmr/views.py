@@ -6,6 +6,7 @@ from django.shortcuts import get_object_or_404, render, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.utils import timezone
+from django.http import JsonResponse
 from .models import BMR, BMRMaterial
 from .serializers import (
     BMRCreateSerializer, BMRDetailSerializer, BMRListSerializer,
@@ -14,6 +15,8 @@ from .serializers import (
 from .forms import BMRCreateForm
 from products.models import Product
 from workflow.services import WorkflowService
+# Import the materials_detail_view from views_materials.py
+from .views_materials import materials_detail_view
 
 @login_required
 def create_bmr_view(request):
@@ -363,7 +366,7 @@ def reject_phase_view(request, bmr_id, phase_name):
             
             # Determine rollback phase based on QC type
             rollback_mapping = {
-                'post_compression_qc': 'blending',
+                'post_compression_qc': 'granulation',  # Changed from blending to granulation
                 'post_mixing_qc': 'mixing',
                 'post_blending_qc': 'blending'
             }
@@ -478,3 +481,72 @@ def reject_phase_view(request, bmr_id, phase_name):
         return redirect('dashboards:qc_dashboard')
     else:
         return redirect('bmr:detail', bmr_id)
+
+@login_required
+def check_product_materials(request):
+    """AJAX endpoint to check if a product has sufficient raw materials available"""
+    product_id = request.GET.get('product_id')
+    
+    if not product_id:
+        return JsonResponse({
+            'has_materials': False,
+            'materials_sufficient': False,
+            'error': 'No product ID provided'
+        })
+    
+    try:
+        product = Product.objects.get(id=product_id)
+        
+        # Check if product has raw materials
+        from products.models import ProductMaterial
+        product_materials = ProductMaterial.objects.filter(product=product)
+        
+        if not product_materials.exists():
+            return JsonResponse({
+                'has_materials': False,
+                'materials_sufficient': False,
+                'message': f"The selected product '{product.product_name}' has no raw materials associated with it."
+            })
+        
+        # Check if sufficient quantities of raw materials are available
+        from raw_materials.models import RawMaterialBatch
+        from django.db import models
+        
+        insufficient_materials = []
+        for pm in product_materials:
+            material = pm.raw_material
+            required_qty = pm.required_quantity
+            
+            # Get total available quantity from approved batches
+            available_qty = RawMaterialBatch.objects.filter(
+                material=material,
+                status='approved'
+            ).aggregate(total=models.Sum('quantity_remaining'))['total'] or 0
+            
+            if available_qty < required_qty:
+                insufficient_materials.append({
+                    'name': material.material_name,
+                    'required': float(required_qty),  # Convert Decimal to float for JSON serialization
+                    'available': float(available_qty),
+                    'unit': material.unit_of_measure
+                })
+        
+        return JsonResponse({
+            'has_materials': True,
+            'materials_sufficient': len(insufficient_materials) == 0,
+            'insufficient_materials': insufficient_materials,
+            'total_materials': product_materials.count()
+        })
+        
+    except Product.DoesNotExist:
+        return JsonResponse({
+            'has_materials': False,
+            'materials_sufficient': False,
+            'error': 'Product not found'
+        })
+    except Exception as e:
+        return JsonResponse({
+            'has_materials': False,
+            'materials_sufficient': False,
+            'error': str(e)
+        })
