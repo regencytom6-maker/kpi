@@ -98,6 +98,24 @@
                             {{ form.planned_completion_date }}
                         </div>
                     </div>
+
+                    <!-- Manufacturing and Expiry Dates -->
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">
+                                <span class="text-danger">*</span> Manufacture Date
+                            </label>
+                            {{ form.manufacture_date }}
+                            <div class="form-text">Date of manufacture for this batch</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">
+                                <span class="text-danger">*</span> Expiry Date
+                            </label>
+                            {{ form.expiry_date }}
+                            <div class="form-text">Expiry date for this batch</div>
+                        </div>
+                    </div>
                     
                     <!-- Instructions -->
                     <div class="mb-3">
@@ -183,26 +201,77 @@ $(document).ready(function() {
             $('#productDetails').show();
             $('#productInfo').html('<i class="fas fa-spinner fa-spin"></i> Loading product details...');
             
-            // Fetch product details (simulated - you can make an AJAX call here)
-            const productText = $(this).find('option:selected').text();
-            const productInfo = `
-                <div class="row">
-                    <div class="col-6"><strong>Product:</strong></div>
-                    <div class="col-6">${productText}</div>
-                </div>
-                <div class="row">
-                    <div class="col-6"><strong>Status:</strong></div>
-                    <div class="col-6"><span class="badge bg-success">Active</span></div>
-                </div>
-                <div class="row">
-                    <div class="col-6"><strong>Type:</strong></div>
-                    <div class="col-6">Details will be loaded from database</div>
-                </div>
-            `;
-            
-            setTimeout(() => {
-                $('#productInfo').html(productInfo);
-            }, 500);
+            // Fetch product details via AJAX
+            $.ajax({
+                url: "{% url 'bmr:check_product_materials' %}",
+                data: {
+                    'product_id': productId
+                },
+                dataType: 'json',
+                success: function(data) {
+                    let productInfoHtml = `
+                        <div class="row">
+                            <div class="col-6"><strong>Product:</strong></div>
+                            <div class="col-6">${productText}</div>
+                        </div>
+                        <div class="row">
+                            <div class="col-6"><strong>Status:</strong></div>
+                            <div class="col-6"><span class="badge bg-success">Active</span></div>
+                        </div>
+                    `;
+                    
+                    // Add material availability section
+                    if (data.has_materials) {
+                        if (data.materials_sufficient) {
+                            productInfoHtml += `
+                                <div class="row mt-2">
+                                    <div class="col-12">
+                                        <div class="alert alert-success mb-0">
+                                            <i class="fas fa-check-circle"></i> All raw materials are available in sufficient quantities.
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                        } else {
+                            productInfoHtml += `
+                                <div class="row mt-2">
+                                    <div class="col-12">
+                                        <div class="alert alert-danger mb-0">
+                                            <i class="fas fa-exclamation-triangle"></i> <strong>Warning:</strong> Insufficient quantities of some raw materials.
+                                            <ul class="mb-0 mt-2">
+                            `;
+                            
+                            data.insufficient_materials.forEach(function(material) {
+                                productInfoHtml += `
+                                    <li>${material.name}: Required ${material.required} ${material.unit}, Available ${material.available} ${material.unit}</li>
+                                `;
+                            });
+                            
+                            productInfoHtml += `
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                        }
+                    } else {
+                        productInfoHtml += `
+                            <div class="row mt-2">
+                                <div class="col-12">
+                                    <div class="alert alert-warning mb-0">
+                                        <i class="fas fa-exclamation-triangle"></i> This product has no raw materials associated with it.
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }
+                    
+                    $('#productInfo').html(productInfoHtml);
+                },
+                error: function() {
+                    $('#productInfo').html('<div class="alert alert-danger">Error loading product details</div>');
+                }
+            });
         } else {
             $('#productDetails').hide();
         }

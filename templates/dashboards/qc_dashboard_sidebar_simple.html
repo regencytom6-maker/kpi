@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+
+{% block title %}Simple QC Dashboard - Kampala Pharmaceutical Industries{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <!-- Sidebar Column -->
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">QC Dashboard</h5>
+                </div>
+                <div class="list-group list-group-flush">
+                    <a href="#raw-material-tests" class="list-group-item list-group-item-action active">
+                        <i class="fas fa-flask me-2"></i> Raw Material Tests
+                    </a>
+                    <a href="#in-process-tests" class="list-group-item list-group-item-action">
+                        <i class="fas fa-vial me-2"></i> In-Process Tests
+                    </a>
+                    <a href="#finished-product-tests" class="list-group-item list-group-item-action">
+                        <i class="fas fa-clipboard-check me-2"></i> Finished Product Tests
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Main Content Column -->
+        <div class="col-md-9">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Raw Material Tests</h5>
+                </div>
+                <div class="card-body">
+                    <p>This is a simplified version of the QC dashboard with a basic sidebar.</p>
+                    
+                    {% if pending_tests %}
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Material</th>
+                                    <th>Batch #</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for test in pending_tests %}
+                                <tr>
+                                    <td>{{ test.raw_material_batch.raw_material.name }}</td>
+                                    <td>{{ test.raw_material_batch.batch_number }}</td>
+                                    <td>Pending</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-primary">Test</button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i> No pending QC tests at this time.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

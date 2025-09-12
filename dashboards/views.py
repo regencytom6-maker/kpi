@@ -1341,13 +1341,23 @@ def operator_dashboard(request):
                             status='pending'
                         )
                     
-                    # Update dispensing record status
+                    # Update dispensing record status and ensure quantities are properly updated
                     dispensing.dispensed_by = request.user
                     dispensing.status = 'completed'
                     dispensing.completed_date = timezone.now()
                     dispensing.dispensing_notes = comments
-                    dispensing._complete_dispensing = True  # Set flag to trigger process_dispensing_completion
                     dispensing.save()
+                    
+                    # Import and use the direct utility function to update quantities
+                    from raw_materials.dispensing_utils import update_material_quantities
+                    
+                    # Get all dispensing items and update their quantities
+                    for item in dispensing.items.all():
+                        success = update_material_quantities(item)
+                        if not success:
+                            messages.warning(request, f"Warning: Could not update quantity for {item.bmr_material.material_name}")
+                    
+                    messages.success(request, f'Successfully dispensed {quantity} {material_batch.material.unit_of_measure} of {material_batch.material.material_name} for BMR {bmr.batch_number}.')
                     
                     # Get or update existing dispensing item
                     bmr_material = bmr.materials.filter(material_code=material_batch.material.material_code).first()
@@ -1360,7 +1370,7 @@ def operator_dashboard(request):
                         # Update existing item
                         dispensing_item.material_batch = material_batch
                         dispensing_item.dispensed_quantity = decimal_quantity
-                        dispensing_item.is_dispensed = False  # Set to False so process_dispensing_completion can handle it
+                        dispensing_item.is_dispensed = False  # Set to False so we can update quantities
                         dispensing_item.save()
                     else:
                         # Create new item if none exists
@@ -1370,13 +1380,16 @@ def operator_dashboard(request):
                             material_batch=material_batch,
                             required_quantity=decimal_quantity,
                             dispensed_quantity=decimal_quantity,
-                            is_dispensed=False  # Set to False so process_dispensing_completion can handle it
+                            is_dispensed=False  # Set to False so we can update quantities
                         )
                     
-                    # The quantity update will be handled by process_dispensing_completion
-                    # when the dispensing is saved with 'completed' status
-                    
-                    messages.success(request, f'Successfully dispensed {quantity} {material_batch.material.unit_of_measure} of {material_batch.material.material_name} for BMR {bmr.batch_number}.')
+                    # Update quantities directly
+                    from raw_materials.dispensing_utils import update_material_quantities
+                    success = update_material_quantities(dispensing_item)
+                    if not success:
+                        messages.warning(request, f"Warning: Could not update quantity for {dispensing_item.bmr_material.material_name}")
+                    else:
+                        messages.success(request, f'Successfully dispensed {quantity} {material_batch.material.unit_of_measure} of {material_batch.material.material_name} for BMR {bmr.batch_number}.')
                 
                 except Exception as e:
                     import traceback
@@ -1545,6 +1558,7 @@ def operator_dashboard(request):
         {
             'date': (p.completed_date or p.started_date or p.created_date).strftime('%Y-%m-%d %H:%M') if (p.completed_date or p.started_date or p.created_date) else '',
             'batch': p.bmr.bmr_number,
+            'bmr_id': p.bmr.id,  # Added BMR ID for linking
             'phase': p.phase.get_phase_name_display(),
         }
         for p in completed_phases

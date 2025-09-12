@@ -13,7 +13,7 @@ class BMRAdmin(admin.ModelAdmin):
     
     fieldsets = (
         ('Basic Information', {
-            'fields': ('product', 'batch_number', 'bmr_number', 'batch_size', 'batch_size_unit'),
+            'fields': ('product', 'batch_number', 'bmr_number', 'actual_batch_size', 'actual_batch_size_unit'),
             'description': 'Enter batch number manually in format XXXYYYY (e.g., 0012025)'
         }),
         ('Dates', {

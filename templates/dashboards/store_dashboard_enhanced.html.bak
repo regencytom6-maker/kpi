@@ -1,0 +1,1215 @@
+        <!-- Add New Raw Material Tab -->
+        <div class="tab-pane fade" id="add-material" role="tabpanel" aria-labelledby="add-material-tab">
+            <div class="card mt-2">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-plus-circle me-2"></i>Add New Raw Material
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form id="newMaterialForm" method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="form_type" value="new_material">
+                        ...existing code...
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Receive Raw Material Batch Tab -->
+        <div class="tab-pane fade" id="receive-batch" role="tabpanel" aria-labelledby="receive-batch-tab">
+            <div class="card mt-2">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-truck-loading me-2"></i>Receive Raw Material Batch
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form id="receiveMaterialForm" method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="form_type" value="receive_material">
+                        ...existing code...
+                    </form>
+                </div>
+            </div>
+        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <ul class="nav nav-tabs mb-4" id="storeTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="releases-tab" data-bs-toggle="tab" data-bs-target="#releases" type="button" role="tab" aria-controls="releases" aria-selected="true">
+                <i class="fas fa-box-open me-2"></i>Material Releases
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="inventory-tab" data-bs-toggle="tab" data-bs-target="#inventory" type="button" role="tab" aria-controls="inventory" aria-selected="false">
+                <i class="fas fa-boxes me-2"></i>Inventory
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="add-material-tab" data-bs-toggle="tab" data-bs-target="#add-material" type="button" role="tab" aria-controls="add-material" aria-selected="false">
+                <i class="fas fa-plus-circle me-2"></i>Add New Raw Material
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="receive-batch-tab" data-bs-toggle="tab" data-bs-target="#receive-batch" type="button" role="tab" aria-controls="receive-batch" aria-selected="false">
+                <i class="fas fa-truck-loading me-2"></i>Receive Raw Material Batch
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="expiry-tab" data-bs-toggle="tab" data-bs-target="#expiry" type="button" role="tab" aria-controls="expiry" aria-selected="false">
+                <i class="fas fa-calendar-times me-2"></i>Expiry Tracking
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="history-tab" data-bs-toggle="tab" data-bs-target="#history" type="button" role="tab" aria-controls="history" aria-selected="false">
+                <i class="fas fa-history me-2"></i>Recent Activity
+            </button>
+        </li>
+    </ul>
+
+    <!-- Tab Content -->
+    <div class="tab-content" id="storeTabsContent">
+        <!-- Material Releases Tab -->
+    <div class="tab-pane fade show active" id="releases" role="tabpanel" aria-labelledby="releases-tab">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-warehouse me-2"></i>Raw Material Release Queue
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if my_phases %}
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>BMR Number</th>
+                                        <th>Product</th>
+                                        <th>Batch Size</th>
+                                        <th>Priority</th>
+                                        <th>Created</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for phase in my_phases %}
+                                    <tr>
+                                        <td><strong class="text-primary">{{ phase.bmr.bmr_number }}</strong></td>
+                                        <td>{{ phase.bmr.product.product_name }}</td>
+                                        <td>{{ phase.bmr.batch_size|floatformat:0 }} {{ phase.bmr.product.unit_of_measure }}</td>
+                                        <td>
+                                            {% if phase.bmr.created_date|timesince|slice:":1" == "0" %}
+                                                <span class="badge bg-danger">Urgent</span>
+                                            {% elif phase.bmr.created_date|timesince|slice:":1" == "1" %}
+                                                <span class="badge bg-warning">High</span>
+                                            {% else %}
+                                                <span class="badge bg-success">Normal</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ phase.bmr.created_date|date:"M d, H:i" }}</td>
+                                        <td>
+                                            {% if phase.status == 'pending' %}
+                                                <span class="badge bg-warning">Pending</span>
+                                            {% elif phase.status == 'in_progress' %}
+                                                <span class="badge bg-info">In Progress</span>
+                                            {% else %}
+                                                <span class="badge bg-success">{{ phase.status|title }}</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm">
+                                                <a href="{% url 'bmr:detail' phase.bmr.pk %}" 
+                                                   class="btn btn-outline-primary btn-sm">
+                                                    <i class="fas fa-eye"></i> View
+                                                </a>
+                                                {% if phase.status == 'pending' %}
+                                                <button class="btn btn-outline-success btn-sm"
+                                                        onclick="startRelease('{{ phase.bmr.pk }}', '{{ phase.bmr.bmr_number }}')">
+                                                    <i class="fas fa-play"></i> Start
+                                                </button>
+                                                {% elif phase.status == 'in_progress' %}
+                                                <button class="btn btn-outline-warning btn-sm"
+                                                        onclick="completeRelease('{{ phase.bmr.pk }}', '{{ phase.bmr.bmr_number }}')">
+                                                    <i class="fas fa-check"></i> Complete
+                                                </button>
+                                                {% endif %}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-5">
+                            <i class="fas fa-warehouse fa-3x text-success mb-3"></i>
+                            <h5 class="text-muted">No Pending Raw Material Releases</h5>
+                            <p class="text-muted">All raw material release requests are up to date.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Inventory Tab -->
+    <div class="tab-pane fade" id="inventory" role="tabpanel" aria-labelledby="inventory-tab">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-boxes me-2"></i>Raw Materials Inventory
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <!-- Inventory Search and Filter -->
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <div class="input-group">
+                                <input type="text" id="inventorySearch" class="form-control" placeholder="Search materials...">
+                                <button class="btn btn-outline-primary" type="button" onclick="searchInventory()">
+                                    <i class="fas fa-search"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <select id="categoryFilter" class="form-select" onchange="filterInventory()">
+                                <option value="">All Categories</option>
+                                <option value="active">Active Ingredients</option>
+                                <option value="excipient">Excipients</option>
+                                <option value="packaging">Packaging Materials</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <select id="statusFilter" class="form-select" onchange="filterInventory()">
+                                <option value="">All Statuses</option>
+                                <option value="in_stock">In Stock</option>
+                                <option value="low_stock">Low Stock</option>
+                                <option value="out_of_stock">Out of Stock</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- Inventory Table -->
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover" id="inventoryTable">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Material Code</th>
+                                    <th>Material Name</th>
+                                    <th>Category</th>
+                                    <th>Current Stock</th>
+                                    <th>Min Stock</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- This will be populated via AJAX -->
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Inventory Loading Indicator -->
+                    <div id="inventoryLoading" class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2 text-muted">Loading inventory data...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Receive Materials Tab -->
+        <div class="tab-pane fade" id="receive" role="tabpanel" aria-labelledby="receive-tab">
+            <div class="alert alert-info mb-4">
+                <strong>Workflow:</strong> <br>
+                <ol class="mb-0">
+                    <li><b>Add New Raw Material</b>: Define a new material type before receiving batches.</li>
+                    <li><b>Receive Raw Material Batch</b>: Record each delivery of a batch after it arrives.</li>
+                    <li><b>Inventory</b>: All materials and batches are shown below, with QC status.</li>
+                </ol>
+            </div>
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-truck-loading me-2"></i>Receive Raw Material Batch
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">Select an existing raw material and enter batch details to record a new delivery.</p>
+                    <form id="receiveMaterialForm" method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="form_type" value="receive_material">
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="material_id" class="form-label">Raw Material</label>
+                                <select id="material_id" name="material_id" class="form-select" required>
+                                    <option value="">Select Raw Material</option>
+                                    <!-- Will be populated via AJAX -->
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="batch_number" class="form-label">Batch Number</label>
+                                <input type="text" id="batch_number" name="batch_number" class="form-control" required>
+                            </div>
+                        </div>
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label for="quantity_received" class="form-label">Quantity Received</label>
+                                <input type="number" id="quantity_received" name="quantity_received" class="form-control" step="0.01" min="0.01" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="manufacturing_date" class="form-label">Manufacturing Date</label>
+                                <input type="date" id="manufacturing_date" name="manufacturing_date" class="form-control" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="expiry_date" class="form-label">Expiry Date</label>
+                                <input type="date" id="expiry_date" name="expiry_date" class="form-control" required>
+                            </div>
+                        </div>
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="supplier" class="form-label">Supplier</label>
+                                <input type="text" id="supplier" name="supplier" class="form-control" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="received_date" class="form-label">Received Date</label>
+                                <input type="date" id="received_date" name="received_date" class="form-control" value="{{ today|date:'Y-m-d' }}" required>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="notes" class="form-label">Receipt Notes</label>
+                            <textarea id="notes" name="notes" class="form-control" rows="3"></textarea>
+                        </div>
+                        
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-success">
+                                <i class="fas fa-save me-2"></i>Record Material Receipt
+                            </button>
+                        </div>
+                    </form>
+
+                    <!-- Add New Raw Material Tab -->
+                <div class="tab-pane fade" id="add-material" role="tabpanel" aria-labelledby="add-material-tab">
+                        <div class="card mt-2">
+                            <div class="card-header bg-primary text-white">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-plus-circle me-2"></i>Add New Raw Material
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <form id="newMaterialForm" method="post">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="form_type" value="new_material">
+                                    ...existing code...
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Receive Raw Material Batch Tab -->
+                <div class="tab-pane fade" id="receive-batch" role="tabpanel" aria-labelledby="receive-batch-tab">
+                        <div class="card mt-2">
+                            <div class="card-header bg-success text-white">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-truck-loading me-2"></i>Receive Raw Material Batch
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <form id="receiveMaterialForm" method="post">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="form_type" value="receive_material">
+                                    ...existing code...
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+            <div class="card mt-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-plus-circle me-2"></i>Add New Raw Material
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form id="newMaterialForm" method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="form_type" value="new_material">
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="material_code" class="form-label">Material Code</label>
+                                <input type="text" id="material_code" name="material_code" class="form-control" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="material_name" class="form-label">Material Name</label>
+                                <input type="text" id="material_name" name="material_name" class="form-control" required>
+                            </div>
+                        </div>
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label for="category" class="form-label">Category</label>
+                                <select id="category" name="category" class="form-select" required>
+                                    <option value="">Select Category</option>
+                                    <option value="active">Active Pharmaceutical Ingredient</option>
+                                    <option value="excipient">Excipient</option>
+                                    <option value="packaging">Packaging Material</option>
+                                    <option value="other">Other</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="unit_of_measure" class="form-label">Unit of Measure</label>
+                                <input type="text" id="unit_of_measure" name="unit_of_measure" class="form-control" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="reorder_level" class="form-label">Reorder Level</label>
+                                <input type="number" id="reorder_level" name="reorder_level" class="form-control" step="0.01" min="0.01" required>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Description</label>
+                            <textarea id="description" name="description" class="form-control" rows="3"></textarea>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="default_supplier" class="form-label">Default Supplier</label>
+                            <input type="text" id="default_supplier" name="default_supplier" class="form-control">
+                        </div>
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-12">
+                                <label class="form-label">Product Association</label>
+                                <div class="border rounded p-3">
+                                    <p class="text-muted small mb-2">Select products that use this raw material:</p>
+                                    <select id="associated_products" name="associated_products" class="form-select" multiple required>
+                                        <!-- Will be populated via AJAX -->
+                                    </select>
+                                    <small class="text-muted">Hold Ctrl (Windows) or Command (Mac) to select multiple products.</small>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-plus-circle me-2"></i>Add New Raw Material
+                            </button>
+                        </div>
+                        <div class="d-grid gap-2 mt-2">
+                            <button type="button" class="btn btn-outline-secondary" onclick="resetNewMaterialForm()">
+                                <i class="fas fa-redo me-2"></i>Add Another Raw Material
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Expiry Tracking Tab -->
+    <div class="tab-pane fade" id="expiry" role="tabpanel" aria-labelledby="expiry-tab">
+            <div class="card">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-calendar-times me-2"></i>Expiry Tracking
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-4">
+                        <div class="col-md-4">
+                            <div class="card border-danger">
+                                <div class="card-header bg-danger text-white">
+                                    <h6 class="mb-0">Expiring Within 30 Days</h6>
+                                </div>
+                                <div class="card-body">
+                                    <h3 class="text-danger text-center mb-3" id="expiring30Count">...</h3>
+                                    <div class="progress">
+                                        <div class="progress-bar bg-danger" id="expiring30Progress" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card border-warning">
+                                <div class="card-header bg-warning text-white">
+                                    <h6 class="mb-0">Expiring Within 90 Days</h6>
+                                </div>
+                                <div class="card-body">
+                                    <h3 class="text-warning text-center mb-3" id="expiring90Count">...</h3>
+                                    <div class="progress">
+                                        <div class="progress-bar bg-warning" id="expiring90Progress" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card border-success">
+                                <div class="card-header bg-success text-white">
+                                    <h6 class="mb-0">Valid Materials</h6>
+                                </div>
+                                <div class="card-body">
+                                    <h3 class="text-success text-center mb-3" id="validCount">...</h3>
+                                    <div class="progress">
+                                        <div class="progress-bar bg-success" id="validProgress" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Expiring Materials Table -->
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover" id="expiryTable">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Material</th>
+                                    <th>Batch</th>
+                                    <th>Remaining</th>
+                                    <th>Expiry Date</th>
+                                    <th>Days Left</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for batch in expiring_soon %}
+                                <tr>
+                                    <td>{{ batch.material.material_name }}</td>
+                                    <td>{{ batch.batch_number }}</td>
+                                    <td>{{ batch.quantity_remaining }} {{ batch.material.unit_of_measure }}</td>
+                                    <td>{{ batch.expiry_date|date:"M d, Y" }}</td>
+                                    <td>
+                                        {% with days_left=batch.expiry_date|timeuntil %}
+                                            {% if "day" in days_left %}
+                                                <span class="badge {% if days_left < '30 days' %}bg-danger{% else %}bg-warning{% endif %}">
+                                                    {{ days_left }}
+                                                </span>
+                                            {% else %}
+                                                <span class="badge bg-danger">{{ days_left }}</span>
+                                            {% endif %}
+                                        {% endwith %}
+                                    </td>
+                                    <td>
+                                        {% if batch.status == 'approved' %}
+                                            <span class="badge bg-success">Approved</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">{{ batch.status|title }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-danger" onclick="markForDisposal('{{ batch.id }}')">
+                                            <i class="fas fa-trash-alt"></i> Mark for Disposal
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- History Tab -->
+    <div class="tab-pane fade" id="history" role="tabpanel" aria-labelledby="history-tab">
+            <div class="card">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-history me-2"></i>Recent Activity
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="card mb-4">
+                                <div class="card-header bg-success text-white">
+                                    <h6 class="mb-0">Recently Completed Releases</h6>
+                                </div>
+                                <div class="card-body">
+                                    {% if recently_completed %}
+                                        <div class="table-responsive">
+                                            <table class="table table-hover">
+                                                <thead>
+                                                    <tr>
+                                                        <th>BMR Number</th>
+                                                        <th>Product</th>
+                                                        <th>Batch Size</th>
+                                                        <th>Completed</th>
+                                                        <th>Actions</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {% for phase in recently_completed %}
+                                                    <tr>
+                                                        <td><strong class="text-primary">{{ phase.bmr.bmr_number }}</strong></td>
+                                                        <td>{{ phase.bmr.product.product_name }}</td>
+                                                        <td>{{ phase.bmr.batch_size|floatformat:0 }} {{ phase.bmr.product.unit_of_measure }}</td>
+                                                        <td>{{ phase.completed_date|date:"M d, H:i" }}</td>
+                                                        <td>
+                                                            <a href="{% url 'bmr:detail' phase.bmr.pk %}" 
+                                                            class="btn btn-outline-primary btn-sm">
+                                                                <i class="fas fa-eye"></i> View
+                                                            </a>
+                                                        </td>
+                                                    </tr>
+                                                    {% endfor %}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    {% else %}
+                                        <div class="text-center py-4 text-muted">
+                                            <i class="fas fa-history fa-3x mb-3"></i>
+                                            <p>No recent releases completed</p>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <div class="card mb-4">
+                                <div class="card-header bg-primary text-white">
+                                    <h6 class="mb-0">Activity Timeline</h6>
+                                </div>
+                                <div class="card-body p-0">
+                                    <ul class="list-group list-group-flush" id="activityTimeline">
+                                        <!-- Will be populated via AJAX -->
+                                        <li class="list-group-item">
+                                            <div class="d-flex w-100 justify-content-between">
+                                                <h6 class="mb-1">Loading activities...</h6>
+                                            </div>
+                                            <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                                <span class="visually-hidden">Loading...</span>
+                                            </div>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+
+                            <div class="card">
+                                <div class="card-header bg-info text-white">
+                                    <h6 class="mb-0">Release Stats</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row text-center">
+                                        <div class="col-6">
+                                            <div class="border-end">
+                                                <h4 class="text-success">{{ stats.completed_today }}</h4>
+                                                <small class="text-muted">Today</small>
+                                            </div>
+                                        </div>
+                                        <div class="col-6">
+                                            <h4 class="text-primary">{{ stats.total_batches }}</h4>
+                                            <small class="text-muted">Total</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- CSRF Token for AJAX requests -->
+{% csrf_token %}
+
+<script>
+// Initialize all tooltips
+var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+    return new bootstrap.Tooltip(tooltipTriggerEl)
+})
+
+// Handle Material Release Functions
+function startRelease(bmrId, bmrNumber) {
+    const notes = prompt(`Enter notes for starting raw material release for BMR ${bmrNumber}:`);
+    if (notes !== null) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '{% url "dashboards:store_dashboard" %}';
+        
+        // Add CSRF token
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+        if (csrfToken) {
+            form.appendChild(csrfToken.cloneNode());
+        }
+        
+        // Add form data
+        const fields = {
+            'bmr_id': bmrId,
+            'action': 'start',
+            'notes': notes
+        };
+        
+        for (const [key, value] of Object.entries(fields)) {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = key;
+            input.value = value;
+            form.appendChild(input);
+        }
+        
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+
+function completeRelease(bmrId, bmrNumber) {
+    const notes = prompt(`Enter notes for completing raw material release for BMR ${bmrNumber}:`);
+    if (notes !== null) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '{% url "dashboards:store_dashboard" %}';
+        
+        // Add CSRF token
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+        if (csrfToken) {
+            form.appendChild(csrfToken.cloneNode());
+        }
+        
+        // Add form data
+        const fields = {
+            'bmr_id': bmrId,
+            'action': 'complete',
+            'notes': notes
+        };
+        
+        for (const [key, value] of Object.entries(fields)) {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = key;
+            input.value = value;
+            form.appendChild(input);
+        }
+        
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+
+// Set today's date as default for date fields
+document.addEventListener('DOMContentLoaded', function() {
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Set default dates
+    if (document.getElementById('received_date')) {
+        document.getElementById('received_date').value = today;
+    }
+    
+    // Load inventory data when the inventory tab is shown
+    document.getElementById('inventory-tab').addEventListener('shown.bs.tab', function (e) {
+        loadInventoryData();
+    });
+    
+    // Load raw materials for the receive form
+    loadRawMaterials();
+    
+    // Load products for associations
+    loadProducts();
+    
+    // Load activity timeline
+    loadActivityTimeline();
+    
+    // Initialize form submissions
+    initFormSubmissions();
+    
+    // Load expiry data
+    loadExpiryData();
+});
+
+// Inventory Tab Functions
+function loadInventoryData() {
+    const tableBody = document.querySelector('#inventoryTable tbody');
+    const loadingIndicator = document.getElementById('inventoryLoading');
+    
+    // Show loading indicator
+    tableBody.innerHTML = '';
+    loadingIndicator.style.display = 'block';
+    
+    // Get CSRF token
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    
+    // Make AJAX request
+    fetch('{% url "raw_materials:api_materials" %}', {
+        method: 'GET',
+        headers: {
+            'X-CSRFToken': csrfToken,
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        // Hide loading indicator
+        loadingIndicator.style.display = 'none';
+        
+        // Populate table
+        if (data.materials && data.materials.length > 0) {
+            data.materials.forEach(material => {
+                const row = document.createElement('tr');
+                
+                // Set status class
+                let statusClass = 'bg-success';
+                if (material.status === 'low_stock') {
+                    statusClass = 'bg-warning';
+                } else if (material.status === 'out_of_stock') {
+                    statusClass = 'bg-danger';
+                }
+                
+                // Format category
+                let category = material.category;
+                if (category === 'active') {
+                    category = 'Active Ingredient';
+                } else if (category === 'excipient') {
+                    category = 'Excipient';
+                } else if (category === 'packaging') {
+                    category = 'Packaging Material';
+                }
+                
+                row.innerHTML = `
+                    <td>${material.material_code}</td>
+                    <td>${material.material_name}</td>
+                    <td>${category}</td>
+                    <td>${material.current_stock} ${material.unit_of_measure}</td>
+                    <td>${material.reorder_level} ${material.unit_of_measure}</td>
+                    <td><span class="badge ${statusClass}">${material.status.replace('_', ' ').toUpperCase()}</span></td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary" onclick="viewMaterialDetails(${material.id})">
+                            <i class="fas fa-eye"></i> Details
+                        </button>
+                        <button class="btn btn-sm btn-outline-success" onclick="showReceiveForm(${material.id})">
+                            <i class="fas fa-plus"></i> Receive
+                        </button>
+                    </td>
+                `;
+                
+                tableBody.appendChild(row);
+            });
+        } else {
+            tableBody.innerHTML = `
+                <tr>
+                    <td colspan="7" class="text-center py-4 text-muted">
+                        <i class="fas fa-boxes fa-3x mb-3"></i>
+                        <p>No raw materials found</p>
+                    </td>
+                </tr>
+            `;
+        }
+    })
+    .catch(error => {
+        console.error('Error fetching inventory data:', error);
+        loadingIndicator.style.display = 'none';
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="7" class="text-center text-danger py-4">
+                    <i class="fas fa-exclamation-triangle fa-3x mb-3"></i>
+                    <p>Error loading inventory data. Please try again.</p>
+                </td>
+            </tr>
+        `;
+    });
+}
+
+function searchInventory() {
+    const searchTerm = document.getElementById('inventorySearch').value.toLowerCase();
+    const rows = document.querySelectorAll('#inventoryTable tbody tr');
+    
+    rows.forEach(row => {
+        const text = row.textContent.toLowerCase();
+        if (text.includes(searchTerm)) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+}
+
+function filterInventory() {
+    const categoryFilter = document.getElementById('categoryFilter').value;
+    const statusFilter = document.getElementById('statusFilter').value;
+    const rows = document.querySelectorAll('#inventoryTable tbody tr');
+    
+    rows.forEach(row => {
+        let showRow = true;
+        
+        // Apply category filter
+        if (categoryFilter && row.cells[2].textContent.toLowerCase() !== categoryFilter) {
+            showRow = false;
+        }
+        
+        // Apply status filter
+        if (statusFilter) {
+            const status = row.cells[5].textContent.toLowerCase();
+            if (!status.includes(statusFilter.replace('_', ' '))) {
+                showRow = false;
+            }
+        }
+        
+        row.style.display = showRow ? '' : 'none';
+    });
+}
+
+// Receive Materials Tab Functions
+function loadRawMaterials() {
+    const select = document.getElementById('material_id');
+    
+    if (!select) return;
+    
+    // Get CSRF token
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    
+    // Make AJAX request
+    fetch('{% url "raw_materials:api_materials" %}', {
+        method: 'GET',
+        headers: {
+            'X-CSRFToken': csrfToken,
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        // Clear existing options except the first one
+        select.innerHTML = '<option value="">Select Raw Material</option>';
+        
+        // Add options
+    data.materials.forEach(material => {
+            const option = document.createElement('option');
+            option.value = material.id;
+            option.textContent = `${material.material_name} (${material.material_code})`;
+            select.appendChild(option);
+        });
+    })
+    .catch(error => {
+        console.error('Error loading raw materials:', error);
+    });
+}
+
+function loadProducts() {
+    const container = document.getElementById('productAssociations');
+    
+    if (!container) return;
+    
+    // Get CSRF token
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    
+    // Make AJAX request
+    fetch('{% url "products:api_products" %}', {
+        method: 'GET',
+        headers: {
+            'X-CSRFToken': csrfToken,
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        // Clear existing content
+        container.innerHTML = '';
+        
+        // Add checkboxes
+        data.forEach(product => {
+            const col = document.createElement('div');
+            col.className = 'col-md-6 mb-2';
+            
+            col.innerHTML = `
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="product_${product.id}" name="associated_products" value="${product.id}">
+                    <label class="form-check-label" for="product_${product.id}">
+                        ${product.product_name} (${product.product_type})
+                    </label>
+                </div>
+            `;
+            
+            container.appendChild(col);
+        });
+    })
+    .catch(error => {
+        console.error('Error loading products:', error);
+        container.innerHTML = '<div class="col-12 text-danger">Error loading products. Please refresh the page.</div>';
+    });
+}
+
+function loadActivityTimeline() {
+    const container = document.getElementById('activityTimeline');
+    
+    if (!container) return;
+    
+    // Get CSRF token
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    
+    // Make AJAX request
+    fetch('{% url "raw_materials:api_activity" %}', {
+        method: 'GET',
+        headers: {
+            'X-CSRFToken': csrfToken,
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        // Clear existing content
+        container.innerHTML = '';
+        
+        // Add activities
+        if (data.length > 0) {
+            data.forEach(activity => {
+                const item = document.createElement('li');
+                item.className = 'list-group-item';
+                
+                // Format timestamp
+                const date = new Date(activity.timestamp);
+                const formattedDate = date.toLocaleDateString('en-US', { 
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+                
+                // Set icon based on activity type
+                let icon = 'fas fa-info-circle text-primary';
+                if (activity.activity_type === 'receive') {
+                    icon = 'fas fa-truck-loading text-success';
+                } else if (activity.activity_type === 'qc_approve') {
+                    icon = 'fas fa-check-circle text-success';
+                } else if (activity.activity_type === 'qc_reject') {
+                    icon = 'fas fa-times-circle text-danger';
+                } else if (activity.activity_type === 'dispense') {
+                    icon = 'fas fa-prescription-bottle text-warning';
+                }
+                
+                item.innerHTML = `
+                    <div class="d-flex w-100 justify-content-between">
+                        <h6 class="mb-1"><i class="${icon} me-2"></i>${activity.title}</h6>
+                        <small class="text-muted">${formattedDate}</small>
+                    </div>
+                    <p class="mb-1 small">${activity.description}</p>
+                    <small>${activity.user}</small>
+                `;
+                
+                container.appendChild(item);
+            });
+        } else {
+            container.innerHTML = `
+                <li class="list-group-item text-center py-4 text-muted">
+                    <i class="fas fa-history fa-2x mb-2"></i>
+                    <p>No recent activity</p>
+                </li>
+            `;
+        }
+    })
+    .catch(error => {
+        console.error('Error loading activity timeline:', error);
+        container.innerHTML = `
+            <li class="list-group-item text-center text-danger py-4">
+                <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
+                <p>Error loading activity data</p>
+            </li>
+        `;
+    });
+}
+
+function loadExpiryData() {
+    // Get CSRF token
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    
+    // Make AJAX request
+    fetch('{% url "raw_materials:api_expiry" %}', {
+        method: 'GET',
+        headers: {
+            'X-CSRFToken': csrfToken,
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        // Update expiry counters
+        document.getElementById('expiring30Count').textContent = data.expiring_30_days;
+        document.getElementById('expiring90Count').textContent = data.expiring_90_days;
+        document.getElementById('validCount').textContent = data.valid_materials;
+        
+        // Calculate percentages
+        const total = data.expiring_30_days + data.expiring_90_days + data.valid_materials;
+        const percent30 = total > 0 ? (data.expiring_30_days / total * 100) : 0;
+        const percent90 = total > 0 ? (data.expiring_90_days / total * 100) : 0;
+        const percentValid = total > 0 ? (data.valid_materials / total * 100) : 0;
+        
+        // Update progress bars
+        document.getElementById('expiring30Progress').style.width = `${percent30}%`;
+        document.getElementById('expiring30Progress').setAttribute('aria-valuenow', percent30);
+        
+        document.getElementById('expiring90Progress').style.width = `${percent90}%`;
+        document.getElementById('expiring90Progress').setAttribute('aria-valuenow', percent90);
+        
+        document.getElementById('validProgress').style.width = `${percentValid}%`;
+        document.getElementById('validProgress').setAttribute('aria-valuenow', percentValid);
+    })
+    .catch(error => {
+        console.error('Error loading expiry data:', error);
+    });
+}
+
+function initFormSubmissions() {
+    // Receive Material Form
+    const receiveForm = document.getElementById('receiveMaterialForm');
+    if (receiveForm) {
+        receiveForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            // Get form data
+            const formData = new FormData(receiveForm);
+            
+            // Get CSRF token
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            
+            // Make AJAX request
+            fetch('{% url "raw_materials:receive_material" %}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken
+                },
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Show success message
+                    alert('Material received successfully!');
+                    
+                    // Reset form
+                    receiveForm.reset();
+                    
+                    // Set today's date again
+                    document.getElementById('received_date').value = new Date().toISOString().split('T')[0];
+                    
+                    // Refresh recent receptions (reload page)
+                    window.location.reload();
+                } else {
+                    // Show error message
+                    alert(`Error: ${data.error}`);
+                }
+            })
+            .catch(error => {
+                console.error('Error submitting form:', error);
+                alert('An error occurred while processing your request. Please try again.');
+            });
+        });
+    }
+    
+    // New Material Form
+    const newMaterialForm = document.getElementById('newMaterialForm');
+    if (newMaterialForm) {
+        newMaterialForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            // Get form data
+            const formData = new FormData(newMaterialForm);
+            
+            // Add selected products
+            const selectedProducts = [];
+            document.querySelectorAll('input[name="associated_products"]:checked').forEach(checkbox => {
+                selectedProducts.push(checkbox.value);
+            });
+            formData.set('associated_products', JSON.stringify(selectedProducts));
+            
+            // Get CSRF token
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            
+            // Make AJAX request
+            fetch('{% url "raw_materials:add_material" %}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken
+                },
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Show success message
+                    alert('New raw material added successfully!');
+                    
+                    // Reset form
+                    newMaterialForm.reset();
+                    
+                    // Reload raw materials dropdown
+                    loadRawMaterials();
+                } else {
+                    // Show error message
+                    alert(`Error: ${data.error}`);
+                }
+            })
+            .catch(error => {
+                console.error('Error submitting form:', error);
+                alert('An error occurred while processing your request. Please try again.');
+            });
+        });
+    }
+}
+
+function viewMaterialDetails(materialId) {
+    // Redirect to material detail page
+    window.location.href = `{% url "raw_materials:material_detail" 0 %}`.replace('0', materialId);
+}
+
+function showReceiveForm(materialId) {
+    // Switch to receive tab
+    const receiveTab = document.getElementById('receive-tab');
+    bootstrap.Tab.getInstance(receiveTab).show();
+    
+    // Set the material in the dropdown
+    document.getElementById('material_id').value = materialId;
+    
+    // Scroll to the form
+    document.getElementById('receiveMaterialForm').scrollIntoView({ behavior: 'smooth' });
+}
+
+function markForDisposal(batchId) {
+    if (confirm('Are you sure you want to mark this batch for disposal?')) {
+        // Get CSRF token
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        
+        // Make AJAX request
+        fetch('{% url "raw_materials:mark_for_disposal" %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ batch_id: batchId })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Show success message
+                alert('Batch marked for disposal successfully!');
+                
+                // Refresh page
+                window.location.reload();
+            } else {
+                // Show error message
+                alert(`Error: ${data.error}`);
+            }
+        })
+        .catch(error => {
+            console.error('Error marking for disposal:', error);
+            alert('An error occurred while processing your request. Please try again.');
+        });
+    }
+}
+
+function refreshDashboard() {
+    window.location.reload();
+}
+</script>

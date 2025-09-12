@@ -1,0 +1,220 @@
+"""
+Custom template filters to make the dashboard more user-friendly
+"""
+
+from django.db import models
+
+def all_materials_qc_approved(bmr):
+    """Check if all materials for a BMR have passed QC"""
+    from raw_materials.models import RawMaterial, RawMaterialBatch, RawMaterialQC
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    logger.info(f"Checking QC approval status for BMR: {bmr.bmr_number}")
+    
+    # Get all materials required for this BMR
+    bmr_materials = bmr.materials.all()
+    
+    if not bmr_materials.exists():
+        logger.warning(f"No materials found for BMR {bmr.bmr_number}")
+        return False
+    
+    # Track materials without approved batches for logging
+    unapproved_materials = []
+    
+    # For each material, check if there's at least one QC-approved batch
+    for bmr_material in bmr_materials:
+        # Find matching raw material
+        try:
+            raw_material = RawMaterial.objects.get(material_code=bmr_material.material_code)
+            
+            # Check if there's any QC-approved batch for this material
+            qc_approved_batches = RawMaterialBatch.objects.filter(
+                material=raw_material,
+                status='approved'  # Use the batch status which is updated by QC test
+            ).exists()
+            
+            # If no QC-approved batch exists, return False
+            if not qc_approved_batches:
+                unapproved_materials.append(f"{raw_material.material_name} ({raw_material.material_code})")
+                
+        except RawMaterial.DoesNotExist:
+            # If material doesn't exist in raw materials system, return False
+            unapproved_materials.append(f"Missing material: {bmr_material.material_code}")
+    
+    if unapproved_materials:
+        logger.warning(f"BMR {bmr.bmr_number} has unapproved materials: {', '.join(unapproved_materials)}")
+        return False
+    
+    # All materials have at least one QC-approved batch
+    logger.info(f"All materials for BMR {bmr.bmr_number} are QC approved")
+    return True
+    
+def get_material_qc_report(bmr):
+    """Generate a QC status report for materials in a BMR that are associated with the product and have passed QC tests"""
+    from raw_materials.models import RawMaterial, RawMaterialBatch, RawMaterialQC
+    from django.db.models import Count, Q
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    logger.info(f"Generating QC material report for BMR: {bmr.bmr_number}")
+    
+    material_report = []
+    all_approved = True
+    
+    # First, get materials required by this specific BMR
+    bmr_materials = bmr.materials.all()
+    
+    # For each required material, check if there are QC-approved batches
+    for bmr_material in bmr_materials:
+        logger.info(f"Checking material: {bmr_material.material_code} - {bmr_material.material_name}")
+        
+        try:
+            # Get the raw material record
+            raw_material = RawMaterial.objects.get(material_code=bmr_material.material_code)
+            
+            # Get all approved batches for this material with quantity remaining
+            approved_batches = RawMaterialBatch.objects.filter(
+                material=raw_material,
+                status='approved',  # This is the key change - use batch status not QC status
+                quantity_remaining__gt=0
+            ).distinct()
+    
+    # Log how many QC approved materials were found
+    print(f"Found {qc_approved_materials.count()} QC approved materials for product {bmr.product.product_name}")
+    
+    # If we have approved materials associated with the product, use them
+    if qc_approved_materials.exists():
+        for raw_material in qc_approved_materials:
+            # Get approved batches for this material
+            approved_batches = RawMaterialBatch.objects.filter(
+                material=raw_material,
+                qc_test__final_result='pass',
+                qc_test__status='approved',
+                quantity_remaining__gt=0
+            ).distinct()
+            
+            # Calculate total approved quantity
+            approved_quantity = approved_batches.aggregate(
+                total_qty=models.Sum('quantity_remaining')
+            )['total_qty'] or 0
+            
+            # Get the required quantity from this specific BMR material
+            required_quantity = bmr_material.required_quantity
+            
+            # Check if we have enough approved quantity
+            sufficient_quantity = approved_quantity >= required_quantity
+            
+            # Log the findings
+            logger.info(f"Material {bmr_material.material_code}: Required: {required_quantity}, Approved: {approved_quantity}, Sufficient: {sufficient_quantity}")
+            
+            # Create report item
+            report_item = {
+                'material_name': bmr_material.material_name,
+                'material_code': bmr_material.material_code,
+                'material_id': raw_material.id,
+                'required_quantity': required_quantity,
+                'unit_of_measure': raw_material.unit_of_measure,
+                'approved_quantity': approved_quantity,
+                'status': 'approved' if sufficient_quantity else 'insufficient',
+                'has_qc_tests': approved_batches.exists(),
+                'qc_approved': approved_batches.exists(),
+                'sufficient_quantity': sufficient_quantity,
+                'batches': []
+            }
+            
+            # Update the all_approved flag
+            if not sufficient_quantity or not approved_batches.exists():
+                all_approved = False
+            
+            # Add batch information
+            for batch in approved_batches:
+                try:
+                    # Get the QC test using the related name
+                    qc_tests = RawMaterialQC.objects.filter(material_batch=batch)
+                    if qc_tests.exists():
+                        qc_test = qc_tests.first()
+                        
+                        batch_info = {
+                            'batch_number': batch.batch_number,
+                            'quantity': batch.quantity_remaining,
+                            'expiry_date': batch.expiry_date,
+                            'qc_test_id': qc_test.id,
+                            'qc_date': qc_test.completed_date,
+                            'qc_by': qc_test.tested_by.get_full_name() if qc_test.tested_by else 'Unknown'
+                        }
+                        
+                        report_item['batches'].append(batch_info)
+                    else:
+                        logger.warning(f"Approved batch {batch.batch_number} has no QC test record")
+                except Exception as e:
+                    logger.error(f"Error processing batch {batch.batch_number}: {str(e)}")
+            
+            # Add this material to the report
+            material_report.append(report_item)
+        except RawMaterial.DoesNotExist:
+            # Material not found in system
+            logger.warning(f"Material {bmr_material.material_code} not found in raw materials system")
+            
+            # Add as a missing material
+            material_report.append({
+                'material_name': bmr_material.material_name,
+                'material_code': bmr_material.material_code,
+                'material_id': None,
+                'required_quantity': bmr_material.required_quantity,
+                'unit_of_measure': bmr_material.unit_of_measure,
+                'approved_quantity': 0,
+                'status': 'not_found',
+                'has_qc_tests': False,
+                'qc_approved': False,
+                'sufficient_quantity': False,
+                'batches': []
+            })
+            
+            # Update approval status
+            all_approved = False
+        except Exception as e:
+            logger.error(f"Error processing material {bmr_material.material_code}: {str(e)}")
+            all_approved = False
+    
+    # Log the final report status
+    logger.info(f"Generated QC material report with {len(material_report)} materials, all_approved={all_approved}")
+    
+    # Return the report with status
+    return {
+        'materials': material_report,
+        'all_approved': all_approved and len(material_report) > 0
+    }
+                    
+                    # Add batch information
+                    for batch in approved_batches:
+                        try:
+                            qc_test = batch.qc_test  # Using the related_name from the model
+                            
+                            if qc_test:
+                                batch_info = {
+                                    'batch_number': batch.batch_number,
+                                    'quantity': batch.quantity_remaining,
+                                    'expiry_date': batch.expiry_date,
+                                    'qc_test_id': qc_test.id,
+                                    'qc_date': qc_test.completed_date,
+                                    'qc_by': qc_test.tested_by.get_full_name() if qc_test.tested_by else 'Unknown'
+                                }
+                                report_item['batches'].append(batch_info)
+                        except Exception as e:
+                            print(f"Error processing batch {batch.batch_number}: {str(e)}")
+                    
+                    material_report.append(report_item)
+                    if report_item['status'] != 'approved':
+                        all_approved = False
+            except RawMaterial.DoesNotExist:
+                # Skip materials that don't have matching raw materials
+                print(f"Could not find raw material with code {bmr_material.material_code}")
+                pass
+    
+    print(f"Final material report contains {len(material_report)} QC-approved materials")
+    
+    return {
+        'materials': material_report,
+        'all_approved': all_approved and len(material_report) > 0
+    }

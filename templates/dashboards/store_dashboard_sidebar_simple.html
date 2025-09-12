@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+
+{% block title %}Simple Store Dashboard - Kampala Pharmaceutical Industries{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <!-- Sidebar Column -->
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Store Dashboard</h5>
+                </div>
+                <div class="list-group list-group-flush">
+                    <a href="#raw-material-release" class="list-group-item list-group-item-action active">
+                        <i class="fas fa-box-open me-2"></i> Raw Material Release
+                    </a>
+                    <a href="#inventory" class="list-group-item list-group-item-action">
+                        <i class="fas fa-warehouse me-2"></i> Inventory Management
+                    </a>
+                    <a href="#materials" class="list-group-item list-group-item-action">
+                        <i class="fas fa-flask me-2"></i> Raw Materials
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Main Content Column -->
+        <div class="col-md-9">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Raw Material Release</h5>
+                </div>
+                <div class="card-body">
+                    <p>This is a simplified version of the store dashboard with a basic sidebar.</p>
+                    
+                    {% if my_phases %}
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>BMR #</th>
+                                    <th>Product</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for phase in my_phases %}
+                                <tr>
+                                    <td>{{ phase.bmr.batch_number }}</td>
+                                    <td>{{ phase.bmr.product.name }}</td>
+                                    <td>{{ phase.status }}</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-primary">Start</button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i> No pending raw material releases at this time.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

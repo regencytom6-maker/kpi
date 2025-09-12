@@ -1,4 +1,5 @@
 from django import forms
+from django.db import models
 from .models import BMR, BMRMaterial
 from products.models import Product
 
@@ -8,7 +9,7 @@ class BMRCreateForm(forms.ModelForm):
     class Meta:
         model = BMR
         fields = [
-            'product', 'batch_number'
+            'product', 'batch_number', 'manufacture_date', 'expiry_date'
         ]
         widgets = {
             'batch_number': forms.TextInput(attrs={
@@ -18,6 +19,16 @@ class BMRCreateForm(forms.ModelForm):
                 'title': 'Enter 7 digits: XXX (batch) + YYYY (year)'
             }),
             'product': forms.Select(attrs={'class': 'form-control'}),
+            'manufacture_date': forms.DateInput(attrs={
+                'class': 'form-control',
+                'type': 'date',
+                'required': 'required'
+            }),
+            'expiry_date': forms.DateInput(attrs={
+                'class': 'form-control',
+                'type': 'date',
+                'required': 'required'
+            }),
         }
     
     def __init__(self, *args, **kwargs):
@@ -60,3 +71,50 @@ class BMRCreateForm(forms.ModelForm):
                 )
         
         return batch_number
+        
+    def clean(self):
+        """Validate that the product has raw materials with sufficient quantities"""
+        cleaned_data = super().clean()
+        product = cleaned_data.get('product')
+        
+        if product:
+            # Check if product has raw materials
+            from products.models import ProductMaterial
+            product_materials = ProductMaterial.objects.filter(product=product)
+            
+            if not product_materials.exists():
+                self.add_error('product', 
+                    f"The selected product '{product.product_name}' has no raw materials associated with it. "
+                    f"Please add raw materials to this product before creating a BMR."
+                )
+                return cleaned_data
+            
+            # Check if sufficient quantities of raw materials are available
+            from raw_materials.models import RawMaterialBatch
+            
+            insufficient_materials = []
+            for pm in product_materials:
+                material = pm.raw_material
+                required_qty = pm.required_quantity
+                
+                # Get total available quantity from approved batches
+                available_qty = RawMaterialBatch.objects.filter(
+                    material=material,
+                    status='approved'
+                ).aggregate(total=models.Sum('quantity_remaining'))['total'] or 0
+                
+                if available_qty < required_qty:
+                    insufficient_materials.append({
+                        'name': material.material_name,
+                        'required': required_qty,
+                        'available': available_qty,
+                        'unit': material.unit_of_measure
+                    })
+            
+            if insufficient_materials:
+                error_msg = "Insufficient quantities of the following raw materials:\n"
+                for material in insufficient_materials:
+                    error_msg += f"- {material['name']}: Required {material['required']} {material['unit']}, Available {material['available']} {material['unit']}\n"
+                self.add_error('product', error_msg)
+        
+        return cleaned_data

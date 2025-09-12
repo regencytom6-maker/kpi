@@ -1,0 +1,163 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}QC Test Detail | {{ product_name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .test-result-pass {
+        color: #28a745;
+        font-weight: bold;
+    }
+    .test-result-fail {
+        color: #dc3545;
+        font-weight: bold;
+    }
+    .test-details-card {
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        margin-bottom: 20px;
+    }
+    .test-parameter-row:nth-child(odd) {
+        background-color: rgba(0,0,0,0.03);
+    }
+    .test-header {
+        background-color: #f8f9fa;
+        border-bottom: 1px solid #dee2e6;
+        padding: 15px;
+        border-top-left-radius: 10px;
+        border-top-right-radius: 10px;
+    }
+    .batch-label {
+        background-color: #17a2b8;
+        color: white;
+        padding: 3px 8px;
+        border-radius: 4px;
+        font-size: 0.9rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row mb-3">
+        <div class="col-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{% url 'dashboards:dashboard_home' %}">Dashboard</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'dashboards:qc_dashboard_enhanced' %}">QC Dashboard</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Test Details</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <div class="card test-details-card">
+                <div class="test-header d-flex justify-content-between align-items-center">
+                    <h4 class="m-0">QC Test Details</h4>
+                    <span class="batch-label">{{ batch_number }}</span>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <h5>Test Information</h5>
+                            <table class="table table-sm">
+                                <tr>
+                                    <th>Test ID:</th>
+                                    <td>{{ test_id }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Test Type:</th>
+                                    <td>{{ test_type|title }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Test Date:</th>
+                                    <td>{{ test_date|date:"F d, Y H:i" }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Tested By:</th>
+                                    <td>{{ tested_by }}</td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <h5>Sample Information</h5>
+                            <table class="table table-sm">
+                                <tr>
+                                    <th>Product:</th>
+                                    <td>{{ product_name }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Material:</th>
+                                    <td>{{ material_name }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Batch Number:</th>
+                                    <td><strong>{{ batch_number }}</strong></td>
+                                </tr>
+                                <tr>
+                                    <th>Final Result:</th>
+                                    <td class="{% if final_result == 'Approved' %}test-result-pass{% else %}test-result-fail{% endif %}">
+                                        {{ final_result }}
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+
+                    <h5>Test Parameters</h5>
+                    <table class="table table-bordered">
+                        <thead class="thead-light">
+                            <tr>
+                                <th>Parameter</th>
+                                <th>Specification</th>
+                                <th>Result</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for param in test_parameters %}
+                            <tr class="test-parameter-row">
+                                <td>{{ param.name }}</td>
+                                <td>{{ param.specification }}</td>
+                                <td class="{% if param.result == 'Pass' %}test-result-pass{% else %}test-result-fail{% endif %}">
+                                    {{ param.result }}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+
+                    <div class="row mt-4">
+                        <div class="col-12">
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle mr-2"></i>
+                                This test is for production quality control purposes in compliance with GMP standards.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between mt-4">
+                        <a href="{% url 'dashboards:qc_dashboard_enhanced' %}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left mr-2"></i> Back to QC Dashboard
+                        </a>
+                        <a href="#" class="btn btn-primary" onclick="window.print(); return false;">
+                            <i class="fas fa-print mr-2"></i> Print Test Report
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Could add any interactive elements here if needed
+    $(document).ready(function() {
+        console.log("QC Test Detail page loaded");
+    });
+</script>
+{% endblock %}

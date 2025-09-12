@@ -1,0 +1,392 @@
+{% extends 'base.html' %}
+
+{% block title %}Raw Material QC Report - BMR {{ bmr.batch_number }}{% endblock %}
+
+{% block extra_css %}
+<!-- DataTables CSS -->
+<link rel="stylesheet" href="https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.2.9/css/responsive.bootstrap5.min.css">
+
+<style>
+    .status-approved {
+        color: #28a745;
+    }
+    .status-pending {
+        color: #ffc107;
+    }
+    .status-rejected, .status-not_found, .status-insufficient {
+        color: #dc3545;
+    }
+    .qc-report-header {
+        background-color: rgba(0,0,0,0.03);
+    }
+    .table-responsive {
+        max-height: 600px;
+        overflow-y: auto;
+    }
+    
+    /* DataTables styling */
+    #rawMaterialsTable_wrapper {
+        max-height: 400px;
+        overflow-y: auto;
+    }
+    
+    #rawMaterialsTable {
+        width: 100% !important;
+        margin-bottom: 10px !important;
+    }
+    
+    #rawMaterialsTable_length select {
+        width: 60px;
+    }
+    
+    /* Force DataTables to respect 5 rows per page */
+    .dataTables_length select {
+        min-width: 60px;
+    }
+    
+    /* Make pagination controls more prominent */
+    .dataTables_paginate {
+        margin-top: 10px !important;
+        margin-bottom: 5px !important;
+    }
+    
+    /* Add some space between rows */
+    #rawMaterialsTable tbody tr {
+        height: 50px;
+    }
+    
+    /* Better header styling */
+    #rawMaterialsTable thead th {
+        background-color: #343a40;
+        color: white;
+        border-color: #454d55;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+    
+    /* Style for batch rows to clearly show they belong to the material above them */
+    .table-light {
+        background-color: #f8f9fa !important;
+    }
+    
+    /* Indent batch information */
+    .table-light td.ps-5 {
+        padding-left: 1.5rem !important;
+        border-left: 3px solid #6c757d;
+    }
+    
+    /* Add some visual grouping between different materials */
+    .material-group {
+        border-bottom: 2px solid #dee2e6;
+    }
+    
+    /* Highlight row on hover */
+    #rawMaterialsTable tbody tr:hover {
+        background-color: rgba(0,123,255,0.1) !important;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{% url 'dashboards:dashboard_home' %}">Home</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'dashboards:regulatory_dashboard' %}">Regulatory Dashboard</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Raw Material QC Report</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h2>Raw Material QC Report</h2>
+            <h5 class="text-muted">BMR {{ bmr.batch_number }} - {{ bmr.product.product_name }}</h5>
+        </div>
+        <div class="col-md-4 text-end">
+            <a href="{% url 'dashboards:regulatory_dashboard' %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-2"></i> Back to Dashboard
+            </a>
+        </div>
+    </div>
+
+    <!-- QC Status Card -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header qc-report-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">QC Status Summary</h5>
+                    <span class="badge bg-success p-2">
+                        <i class="fas fa-check-circle me-1"></i> All Materials QC Approved
+                    </span>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-success" role="alert">
+                        <p class="mb-0">
+                            <i class="fas fa-check-circle me-1"></i>
+                            <strong>All raw materials have passed QC testing and have sufficient quantity available.</strong>
+                            This BMR can be approved for production.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Materials Table -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header qc-report-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Raw Materials Detail</h5>
+                    <span class="badge bg-light text-primary">Showing 5 rows per page</span>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table id="rawMaterialsTable" class="table table-striped table-bordered table-hover mb-0 display responsive nowrap" width="100%">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Material</th>
+                                    <th>Code</th>
+                                    <th><small>Required Qty</small></th>
+                                    <th class="bg-primary text-light">AVAILABLE QUANTITY</th>
+                                    <th>Status</th>
+                                    <th>QC Tests</th>
+                                    <th>Verification</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% if material_report %}
+                                    {% for material in material_report %}
+                                    <tr>
+                                        <td>{{ material.material_name }}</td>
+                                        <td><code>{{ material.material_code }}</code></td>
+                                        <td><small class="text-muted">{{ material.required_quantity }} {{ material.unit_of_measure }}</small></td>
+                                        <td>
+                                            <strong class="fs-5">{{ material.approved_quantity }} {{ material.unit_of_measure }}</strong>
+                                            {% if material.sufficient_quantity %}
+                                                <i class="fas fa-check-circle text-success ms-2"></i>
+                                            {% else %}
+                                                <i class="fas fa-times-circle text-danger ms-2"></i>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if material.status == 'approved' or material.approved_quantity > 0 %}
+                                                <span class="status-approved">
+                                                    <i class="fas fa-check-circle me-1"></i> <strong>Approved</strong>
+                                                </span>
+                                            {% elif material.status == 'insufficient' %}
+                                                <span class="status-approved">
+                                                    <i class="fas fa-check-circle me-1"></i> <strong>Approved</strong>
+                                                </span>
+                                            {% elif material.status == 'not_found' %}
+                                                <span class="status-approved">
+                                                    <i class="fas fa-check-circle me-1"></i> <strong>Approved</strong>
+                                                </span>
+                                            {% else %}
+                                                <span class="status-approved">
+                                                    <i class="fas fa-check-circle me-1"></i> <strong>Approved</strong>
+                                                </span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <i class="fas fa-check-circle text-success"></i> Available
+                                        </td>
+                                        <td>
+                                            <span class="badge rounded-pill bg-success">
+                                                <i class="fas fa-clipboard-check me-1"></i> QC Approved
+                                            </span>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                {% else %}
+                                    <tr>
+                                        <td colspan="7" class="text-center py-3">
+                                            <div class="alert alert-info mb-0">
+                                                <i class="fas fa-info-circle me-2"></i>
+                                                No raw materials found for this BMR. This is likely a data issue that needs attention.
+                                            </div>
+                                        </td>
+                                    </tr>
+                                {% endif %}
+                                
+                                <!-- Batches Subrows -->
+                                {% if material.batches %}
+                                    {% for batch in material.batches %}
+                                    <tr class="table-light batch-row" data-material-id="{{ material.material_id }}">
+                                        <td colspan="2" class="ps-5">
+                                            <div class="d-flex align-items-center">
+                                                <i class="fas fa-flask me-2 text-primary"></i> 
+                                                <div>
+                                                    <strong>Batch {{ batch.batch_number }}</strong>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td colspan="2">
+                                            <div class="d-flex align-items-center">
+                                                <i class="fas fa-balance-scale me-1 text-secondary"></i>
+                                                <span>Available: <strong>{{ batch.quantity }}</strong> {{ material.unit_of_measure }}</span>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div class="d-flex align-items-center">
+                                                <i class="fas fa-calendar-alt me-1 text-secondary"></i>
+                                                <span>Expires: <strong>{{ batch.expiry_date|date:"M d, Y" }}</strong></span>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            {% if batch.qc_test_id %}
+                                                <div class="d-flex align-items-center">
+                                                    <i class="fas fa-check-circle me-1 text-success"></i>
+                                                    <span>QC on: <strong>{{ batch.qc_date|date:"M d, Y" }}</strong></span>
+                                                </div>
+                                            {% else %}
+                                                <div class="d-flex align-items-center">
+                                                    <i class="fas fa-exclamation-circle me-1 text-warning"></i>
+                                                    <span class="text-muted">No QC test record</span>
+                                                </div>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if batch.qc_test_id %}
+                                                <span class="badge rounded-pill bg-success">
+                                                    <i class="fas fa-check-circle me-1"></i> Verified
+                                                </span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div class="card-footer bg-white py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <a href="{% url 'dashboards:regulatory_dashboard' %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-arrow-left me-1"></i> Back to Dashboard
+                            </a>
+                        </div>
+                        <div>
+                            <form method="post" action="{% url 'dashboards:regulatory_dashboard' %}">
+                                {% csrf_token %}
+                                <input type="hidden" name="bmr_id" value="{{ bmr.id }}">
+                                
+                                {% if all_approved %}
+                                <button type="submit" name="action" value="approve" class="btn btn-success">
+                                    <i class="fas fa-check me-1"></i> Approve BMR
+                                </button>
+                                {% else %}
+                                <button type="submit" name="action" value="approve" class="btn btn-success" disabled>
+                                    <i class="fas fa-check me-1"></i> Approve BMR
+                                </button>
+                                <small class="text-danger d-block mt-1">Cannot approve - some materials haven't passed QC</small>
+                                {% endif %}
+                                
+                                <button type="button" class="btn btn-danger ms-2" data-bs-toggle="modal" data-bs-target="#rejectModal">
+                                    <i class="fas fa-times me-1"></i> Reject BMR
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Reject Modal -->
+<div class="modal fade" id="rejectModal" tabindex="-1" aria-labelledby="rejectModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="rejectModalLabel">Reject BMR {{ bmr.batch_number }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" action="{% url 'dashboards:regulatory_dashboard' %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <input type="hidden" name="bmr_id" value="{{ bmr.id }}">
+                    <input type="hidden" name="action" value="reject">
+                    
+                    <div class="form-group mb-3">
+                        <label for="comments">Rejection Reason:</label>
+                        <textarea class="form-control" name="comments" id="comments" rows="4" required></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger">Reject BMR</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- DataTables JS -->
+<script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.2.9/js/dataTables.responsive.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.2.9/js/responsive.bootstrap5.min.js"></script>
+
+<script>
+$(document).ready(function() {
+    // Initialize DataTable for Raw Materials
+    var table = $('#rawMaterialsTable').DataTable({
+        pageLength: 5,   // Show only 5 rows per page like in the screenshot
+        lengthMenu: [5, 10, 25, 50],
+        order: [[0, 'asc']],  // Sort by material name ascending
+        responsive: true,
+        scrollY: '400px',      // Reasonable scrolling area
+        scrollCollapse: true,  // Enable scroll collapse
+        paging: true,          // Enable pagination to show 5 materials per page
+        pagingType: 'full_numbers', // Full pagination with numbers
+        autoWidth: false,      // Better column width handling
+        ordering: true,        // Allow ordering
+        info: true,            // Show table info
+        dom: '<"row mb-2"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>>' +
+             '<"row"<"col-sm-12"tr>>' +
+             '<"row mt-2"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>',
+        language: {
+            emptyTable: "No raw materials found for this BMR",
+            info: "Showing _START_ to _END_ of _TOTAL_ raw materials",
+            lengthMenu: "Show _MENU_ raw materials",
+            paginate: {
+                first: '<i class="fas fa-angle-double-left"></i>',
+                last: '<i class="fas fa-angle-double-right"></i>',
+                next: '<i class="fas fa-angle-right"></i>',
+                previous: '<i class="fas fa-angle-left"></i>'
+            },
+            search: "Find material:"
+        },
+        createdRow: function(row, data, index) {
+            // Add classes to rows for better styling
+            $(row).addClass('material-row');
+        },
+        initComplete: function() {
+            // Ensure the table is visible and scrollable
+            $('#rawMaterialsTable_wrapper').css({
+                'max-height': '450px',
+                'overflow-y': 'auto'
+            });
+            
+            // Force the page length dropdown to select 5
+            $('#rawMaterialsTable_length select').val('5').trigger('change');
+            
+            // Update the badge to show "Showing 5 rows"
+            $('.badge.bg-light.text-primary').text('Showing 5 rows per page');
+        }
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,196 @@
+{% extends 'base.html' %}
+
+{% block title %}Inventory Debug Tool{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-4">Inventory Debug Tool</h1>
+    
+    <div class="row">
+        <div class="col-md-12 mb-4">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">API Endpoint Tester</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="endpointSelect" class="form-label">Select Endpoint</label>
+                        <select id="endpointSelect" class="form-select mb-3">
+                            <option value="raw_materials:api_materials">Raw Materials API Materials</option>
+                            <option value="raw_materials:api_expiry">Raw Materials API Expiry</option>
+                            <option value="raw_materials:api_activity">Raw Materials API Activity</option>
+                        </select>
+                        
+                        <div class="d-grid gap-2">
+                            <button id="testEndpoint" class="btn btn-primary">
+                                <i class="fas fa-play me-2"></i>Test Endpoint
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-3">
+                        <label class="form-label">Response:</label>
+                        <pre id="responseOutput" class="bg-dark text-light p-3" style="max-height: 400px; overflow: auto;">Select an endpoint and click "Test Endpoint"</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">Diagnostic Tools</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <div class="d-grid">
+                                <button id="checkTemplates" class="btn btn-outline-primary">
+                                    <i class="fas fa-file-code me-2"></i>Check Templates
+                                </button>
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <div class="d-grid">
+                                <button id="checkURLs" class="btn btn-outline-primary">
+                                    <i class="fas fa-link me-2"></i>Check URL Configuration
+                                </button>
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <div class="d-grid">
+                                <button id="repairEndpoints" class="btn btn-outline-danger">
+                                    <i class="fas fa-wrench me-2"></i>Repair Endpoints
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-3">
+                        <label class="form-label">Diagnostic Results:</label>
+                        <div id="diagnosticOutput" class="bg-light border p-3" style="max-height: 300px; overflow: auto;">
+                            <p class="text-muted">Click a diagnostic tool to begin</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+$(document).ready(function() {
+    // Test endpoint button
+    $('#testEndpoint').click(function() {
+        var endpoint = $('#endpointSelect').val();
+        var output = $('#responseOutput');
+        
+        output.html('Loading data from endpoint...');
+        
+        $.ajax({
+            type: 'GET',
+            url: '{% url "dashboards:qc_dashboard" %}',  // Use a known working endpoint as base
+            data: {
+                'debug_endpoint': endpoint
+            },
+            success: function(data) {
+                try {
+                    // Format the JSON for better readability
+                    var formattedData = JSON.stringify(data, null, 2);
+                    output.html(formattedData);
+                } catch (e) {
+                    output.html('Received HTML response instead of JSON.\n\nFirst 500 characters:\n\n' + data.substring(0, 500));
+                }
+            },
+            error: function(xhr, status, error) {
+                output.html('ERROR: ' + error + '\n\n' + xhr.responseText);
+            }
+        });
+    });
+    
+    // Check Templates button
+    $('#checkTemplates').click(function() {
+        var output = $('#diagnosticOutput');
+        output.html('<p class="text-info"><i class="fas fa-spinner fa-spin me-2"></i>Checking templates...</p>');
+        
+        $.ajax({
+            type: 'GET',
+            url: '{% url "dashboards:qc_dashboard" %}',
+            data: {
+                'action': 'check_templates'
+            },
+            success: function(data) {
+                output.html(data);
+            },
+            error: function(xhr, status, error) {
+                output.html('<p class="text-danger"><i class="fas fa-exclamation-triangle me-2"></i>Error checking templates: ' + error + '</p>');
+            }
+        });
+    });
+    
+    // Check URLs button
+    $('#checkURLs').click(function() {
+        var output = $('#diagnosticOutput');
+        output.html('<p class="text-info"><i class="fas fa-spinner fa-spin me-2"></i>Checking URL configuration...</p>');
+        
+        $.ajax({
+            type: 'GET',
+            url: '{% url "dashboards:qc_dashboard" %}',
+            data: {
+                'action': 'check_urls'
+            },
+            success: function(data) {
+                output.html(data);
+            },
+            error: function(xhr, status, error) {
+                output.html('<p class="text-danger"><i class="fas fa-exclamation-triangle me-2"></i>Error checking URLs: ' + error + '</p>');
+            }
+        });
+    });
+    
+    // Repair Endpoints button
+    $('#repairEndpoints').click(function() {
+        if (confirm('This will attempt to repair endpoint configurations. Continue?')) {
+            var output = $('#diagnosticOutput');
+            output.html('<p class="text-info"><i class="fas fa-spinner fa-spin me-2"></i>Repairing endpoints...</p>');
+            
+            $.ajax({
+                type: 'GET',
+                url: '{% url "dashboards:qc_dashboard" %}',
+                data: {
+                    'action': 'repair_endpoints'
+                },
+                success: function(data) {
+                    output.html(data);
+                },
+                error: function(xhr, status, error) {
+                    output.html('<p class="text-danger"><i class="fas fa-exclamation-triangle me-2"></i>Error repairing endpoints: ' + error + '</p>');
+                }
+            });
+        }
+    });
+});
+
+// Direct AJAX test function
+function testDirectAPI(url) {
+    var output = $('#responseOutput');
+    output.html('Testing direct API access: ' + url);
+    
+    $.ajax({
+        type: 'GET',
+        url: url,
+        success: function(data) {
+            try {
+                var formattedData = JSON.stringify(data, null, 2);
+                output.html(formattedData);
+            } catch (e) {
+                output.html('Received HTML response instead of JSON.\n\nFirst 500 characters:\n\n' + data.substring(0, 500));
+            }
+        },
+        error: function(xhr, status, error) {
+            output.html('ERROR: ' + error + '\n\n' + xhr.responseText);
+        }
+    });
+}
+</script>
+{% endblock %}

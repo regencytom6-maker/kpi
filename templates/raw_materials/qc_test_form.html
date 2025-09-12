@@ -1,0 +1,149 @@
+{% extends 'base.html' %}
+
+{% block title %}Perform QC Test | {{ batch.material.material_name }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{% url 'dashboards:dashboard_home' %}">Home</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'raw_materials:qc_dashboard' %}">QC Dashboard</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Perform QC Test</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h2>Perform QC Test</h2>
+            <h5>{{ batch.material.material_name }} - Batch: {{ batch.batch_number }}</h5>
+        </div>
+        <div class="col-md-4 text-right">
+            <a href="{% url 'raw_materials:qc_dashboard' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i> Back to Dashboard
+            </a>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <form method="post" id="qcTestForm">
+                {% csrf_token %}
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="appearanceResult" class="font-weight-bold">Appearance</label>
+                            <select class="form-control" id="appearanceResult" name="appearance_result" required>
+                                <option value="">Select Result</option>
+                                <option value="pass">Pass</option>
+                                <option value="fail">Fail</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="identificationResult" class="font-weight-bold">Identification</label>
+                            <select class="form-control" id="identificationResult" name="identification_result" required>
+                                <option value="">Select Result</option>
+                                <option value="pass">Pass</option>
+                                <option value="fail">Fail</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="assayResult">Assay (Optional)</label>
+                            <select class="form-control" id="assayResult" name="assay_result">
+                                <option value="">Not Applicable</option>
+                                <option value="pass">Pass</option>
+                                <option value="fail">Fail</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="purityResult">Purity (Optional)</label>
+                            <select class="form-control" id="purityResult" name="purity_result">
+                                <option value="">Not Applicable</option>
+                                <option value="pass">Pass</option>
+                                <option value="fail">Fail</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-12">
+                        <div class="form-group">
+                            <label for="finalResult" class="font-weight-bold">Final Result</label>
+                            <select class="form-control" id="finalResult" name="final_result" required>
+                                <option value="">Select Final Result</option>
+                                <option value="pass">Pass</option>
+                                <option value="fail">Fail</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-12">
+                        <div class="form-group">
+                            <label for="qcComments">Comments</label>
+                            <textarea class="form-control" id="qcComments" name="comments" rows="3"></textarea>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save mr-1"></i> Save Test Results
+                        </button>
+                        <a href="{% url 'raw_materials:qc_dashboard' %}" class="btn btn-secondary">Cancel</a>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Auto-update the final result based on other test results
+    document.addEventListener('DOMContentLoaded', function() {
+        const updateFinalResult = function() {
+            const appearance = document.getElementById('appearanceResult').value;
+            const identification = document.getElementById('identificationResult').value;
+            const assay = document.getElementById('assayResult').value;
+            const purity = document.getElementById('purityResult').value;
+            
+            // If any required test is fail, final result is fail
+            if (appearance === 'fail' || identification === 'fail') {
+                document.getElementById('finalResult').value = 'fail';
+            } 
+            // If optional tests are fail, final result is fail
+            else if ((assay === 'fail' && assay !== '') || (purity === 'fail' && purity !== '')) {
+                document.getElementById('finalResult').value = 'fail';
+            }
+            // If all required tests pass, suggest pass
+            else if (appearance === 'pass' && identification === 'pass') {
+                document.getElementById('finalResult').value = 'pass';
+            }
+        };
+        
+        // Add change listeners to all test result fields
+        document.getElementById('appearanceResult').addEventListener('change', updateFinalResult);
+        document.getElementById('identificationResult').addEventListener('change', updateFinalResult);
+        document.getElementById('assayResult').addEventListener('change', updateFinalResult);
+        document.getElementById('purityResult').addEventListener('change', updateFinalResult);
+    });
+</script>
+{% endblock %}

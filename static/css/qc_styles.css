@@ -1,0 +1,97 @@
+/* QC Dashboard Styles */
+
+/* Form text display areas */
+.form-text-display {
+    padding: 0.375rem 0;
+    font-weight: normal;
+}
+
+/* Result info box (replacing d-flex align-items-end) */
+.result-info-box {
+    margin-top: 2rem;
+    width: 100%;
+}
+
+/* Ensure correct text alignment order */
+.text-align-webkit-match-parent {
+    text-align: -webkit-match-parent;
+}
+
+.text-align-inherit {
+    text-align: inherit;
+}
+
+/* Form status indicators */
+.test-status-indicator {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    margin-right: 5px;
+}
+
+.status-pass {
+    background-color: #28a745;
+}
+
+.status-fail {
+    background-color: #dc3545;
+}
+
+/* QC Activity Table styles */
+#recentQCActivityTable_wrapper {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+#recentQCActivityTable {
+    width: 100% !important;
+    margin-bottom: 10px !important;
+}
+
+/* Force DataTables to respect 5 rows per page */
+.dataTables_length select {
+    min-width: 60px;
+}
+
+/* Make pagination controls more prominent */
+.dataTables_paginate {
+    margin-top: 10px !important;
+    margin-bottom: 5px !important;
+}
+
+/* Add some space between rows */
+#recentQCActivityTable tbody tr {
+    height: 50px;
+}
+
+#recentQCActivityTable_length select {
+    width: 60px;
+}
+
+.status-pending {
+    background-color: #ffc107;
+}
+
+/* QC Test Form */
+#qcTestForm .card {
+    border-radius: 0.25rem;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    transition: all 0.2s ease-in-out;
+}
+
+#qcTestForm .card:hover {
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+#qcTestForm .card-header {
+    border-bottom: 1px solid rgba(0, 0, 0, 0.125);
+    padding: 0.75rem 1rem;
+}
+
+/* Improve accessibility for required fields */
+.required-field::after {
+    content: "*";
+    color: #dc3545;
+    margin-left: 4px;
+}

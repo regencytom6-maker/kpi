@@ -1,0 +1,967 @@
+{% extends 'base.html' %}
+
+{% block title %}Store Manager Dashboard - Kampala Pharmaceutical Industries{% endblock %}
+
+<!-- Version: 2025-08-25-001 - Force browser cache refresh -->
+
+{% block content %}
+<!-- Fix URLs for API calls -->
+<script>
+// Intercept fetch calls to fix URLs with underscores
+const originalFetch = window.fetch;
+window.fetch = function() {
+    // Convert the first argument (URL) if it's a string
+    if (typeof arguments[0] === 'string') {
+        // Replace raw_materials with raw-materials in API calls
+        arguments[0] = arguments[0].replace('/raw_materials/api/', '/raw-materials/api/');
+    }
+    return originalFetch.apply(this, arguments);
+};
+
+// Also intercept jQuery ajax calls
+if (window.jQuery) {
+    const originalAjax = jQuery.ajax;
+    jQuery.ajax = function(options) {
+        if (typeof options.url === 'string') {
+            options.url = options.url.replace('/raw_materials/api/', '/raw-materials/api/');
+        }
+        return originalAjax.call(this, options);
+    };
+}
+</script>
+
+<div class="container-fluid mt-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2 class="text-primary mb-0">
+                        <i class="fas fa-warehouse me-2"></i>Store Manager Dashboard
+                    </h2>
+                    <p class="text-muted mb-0">Raw Material Release Management</p>
+                </div>
+                <div>             
+                    <small class="text-muted">Welcome, {{ user.get_full_name|default:user.username }}</small><br>
+                    <small class="text-success">{{ user.get_role_display }}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0">{{ stats.pending_phases }}</h5>
+                            <p class="card-text">Pending Releases</p>
+                        </div>
+                        <i class="fas fa-clock fa-2x opacity-75"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0">{{ stats.in_progress_phases }}</h5>
+                            <p class="card-text">In Progress</p>
+                        </div>
+                        <i class="fas fa-box fa-2x opacity-75"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0">{{ stats.completed_phases }}</h5>
+                            <p class="card-text">Completed</p>
+                        </div>
+                        <i class="fas fa-check-circle fa-2x opacity-75"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0">{{ stats.total_bmrs }}</h5>
+                            <p class="card-text">Total Batches</p>
+                        </div>
+                        <i class="fas fa-clipboard-check fa-2x opacity-75"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <!-- Sidebar Navigation -->
+        <div class="col-md-3">
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Store Dashboard</h5>
+                </div>
+                <div class="list-group list-group-flush" id="store-sidebar-tabs" role="tablist">
+                    <a class="list-group-item list-group-item-action active" id="raw-material-release-tab" data-bs-toggle="tab" href="#raw-material-release" role="tab" aria-controls="raw-material-release" aria-selected="true">
+                        <i class="fas fa-box-open me-2"></i> Raw Material Release
+                    </a>
+                    <a class="list-group-item list-group-item-action" id="receive-batch-tab" data-bs-toggle="tab" href="#receive-batch" role="tab" aria-controls="receive-batch" aria-selected="false">
+                        <i class="fas fa-truck-loading me-2"></i> Receive Raw Materials
+                    </a>
+                    <a class="list-group-item list-group-item-action" id="inventory-tab" data-bs-toggle="tab" href="#inventory" role="tab" aria-controls="inventory" aria-selected="false">
+                        <i class="fas fa-warehouse me-2"></i> Inventory Management
+                    </a>
+                    <a class="list-group-item list-group-item-action" id="materials-tab" data-bs-toggle="tab" href="#materials" role="tab" aria-controls="materials" aria-selected="false">
+                        <i class="fas fa-flask me-2"></i> Raw Materials
+                    </a>
+                    <a class="list-group-item list-group-item-action" id="add-material-tab" data-bs-toggle="tab" href="#add-material" role="tab" aria-controls="add-material" aria-selected="false">
+                        <i class="fas fa-plus-circle me-2"></i> Add New Material
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content Area -->
+        <div class="col-md-9">
+            <div class="tab-content">
+                <!-- Raw Material Release Tab -->
+                <div class="tab-pane fade show active" id="raw-material-release" role="tabpanel" aria-labelledby="raw-material-release-tab">
+                    <!-- Raw Material Release Queue -->
+                    <div class="card mb-4">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0">
+                                <i class="fas fa-warehouse me-2"></i>Raw Material Release Queue
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            {% if my_phases %}
+                                <div class="table-responsive">
+                                    <table class="table table-striped table-hover">
+                                        <thead class="table-dark">
+                                            <tr>
+                                                <th>BMR Number</th>
+                                                <th>Product</th>
+                                                <th>Batch Size</th>
+                                                <th>Priority</th>
+                                                <th>Created</th>
+                                                <th>Status</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for phase in my_phases %}
+                                            <tr>
+                                                <td><strong class="text-primary">{{ phase.bmr.bmr_number }}</strong></td>
+                                                <td>{{ phase.bmr.product.product_name }}</td>
+                                                <td>{{ phase.bmr.batch_size|floatformat:0 }} {{ phase.bmr.product.unit_of_measure }}</td>
+                                                <td>
+                                                    {% if phase.bmr.created_date|timesince|slice:":1" == "0" %}
+                                                        <span class="badge bg-danger">Urgent</span>
+                                                    {% elif phase.bmr.created_date|timesince|slice:":1" == "1" %}
+                                                        <span class="badge bg-warning">High</span>
+                                                    {% else %}
+                                                        <span class="badge bg-success">Normal</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>{{ phase.bmr.created_date|date:"M d, H:i" }}</td>
+                                                <td>
+                                                    {% if phase.status == 'pending' %}
+                                                        <span class="badge bg-warning">Pending</span>
+                                                    {% elif phase.status == 'in_progress' %}
+                                                        <span class="badge bg-info">In Progress</span>
+                                                    {% elif phase.status == 'completed' %}
+                                                        <span class="badge bg-success">Completed</span>
+                                                    {% elif phase.status == 'rejected' %}
+                                                        <span class="badge bg-danger">Rejected</span>
+                                                    {% else %}
+                                                        <span class="badge bg-secondary">{{ phase.status }}</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    {% if phase.status == 'pending' %}
+                                                        <button type="button" class="btn btn-sm btn-primary" onclick="startRelease('{{ phase.bmr.id }}', '{{ phase.bmr.bmr_number }}')">
+                                                            <i class="fas fa-play"></i> Start
+                                                        </button>
+                                                    {% elif phase.status == 'in_progress' %}
+                                                        <button type="button" class="btn btn-sm btn-success" onclick="completeRelease('{{ phase.bmr.id }}', '{{ phase.bmr.bmr_number }}')">
+                                                            <i class="fas fa-check"></i> Complete
+                                                        </button>
+                                                    {% else %}
+                                                        <button type="button" class="btn btn-sm btn-secondary" disabled>
+                                                            <i class="fas fa-check"></i> Done
+                                                        </button>
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            {% else %}
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle me-2"></i>No raw material release phases pending or in progress.
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Inventory Management Tab -->
+                <div class="tab-pane fade" id="inventory" role="tabpanel" aria-labelledby="inventory-tab">
+                    <div class="card mb-4">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0">
+                                <i class="fas fa-warehouse me-2"></i>Inventory Management
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="card mb-3">
+                                        <div class="card-header bg-light">
+                                            <h6 class="mb-0"><i class="fas fa-boxes me-2"></i>Raw Materials Inventory</h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="d-flex justify-content-between mb-2">
+                                                <span>Total Items:</span>
+                                                <strong>{{ stats.total_materials }}</strong>
+                                            </div>
+                                            <div class="d-flex justify-content-between mb-2">
+                                                <span>In Stock Materials:</span>
+                                                <strong>{{ stats.materials_in_stock }}</strong>
+                                            </div>
+                                            <div class="d-flex justify-content-between">
+                                                <span>Low Stock Alert:</span>
+                                                <strong class="text-warning">{{ stats.low_stock_count }}</strong>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="card mb-3">
+                                        <div class="card-header bg-light">
+                                            <h6 class="mb-0"><i class="fas fa-vials me-2"></i>Material Batches</h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="d-flex justify-content-between mb-2">
+                                                <span>Total Batches:</span>
+                                                <a href="{% url 'raw_materials:batch_list' %}" class="fw-bold text-decoration-none">
+                                                    {{ stats.total_material_batches }}
+                                                </a>
+                                            </div>
+                                            <div class="d-flex justify-content-between mb-2">
+                                                <span>Pending QC:</span>
+                                                <a href="{% url 'raw_materials:pending_batches' %}" class="fw-bold text-warning text-decoration-none">
+                                                    {{ stats.pending_qc_count }}
+                                                </a>
+                                            </div>
+                                            <div class="d-flex justify-content-between">
+                                                <span>Approved:</span>
+                                                <a href="{% url 'raw_materials:approved_batches' %}" class="fw-bold text-success text-decoration-none">
+                                                    {{ stats.approved_count }}
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Low Stock Materials Alert -->
+                            {% if low_stock_materials %}
+                                <div class="alert alert-warning mt-3">
+                                    <h6><i class="fas fa-exclamation-triangle me-2"></i>Low Stock Materials</h6>
+                                    <ul class="mb-0">
+                                        {% for material in low_stock_materials %}
+                                            <li>{{ material.material_name }} - Current: {{ material.current_quantity }} {{ material.unit_of_measure }} (Min: {{ material.minimum_quantity }})</li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                            {% endif %}
+                            
+                            <!-- Recent Transactions -->
+                            <h6 class="mt-4"><i class="fas fa-exchange-alt me-2"></i>Recent Inventory Transactions</h6>
+                            <div class="table-responsive">
+                                <table class="table table-sm table-striped">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Date</th>
+                                            <th>Material</th>
+                                            <th>Batch</th>
+                                            <th>Transaction</th>
+                                            <th>Quantity</th>
+                                            <th>User</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for transaction in recent_transactions %}
+                                            <tr>
+                                                <td>{{ transaction.transaction_date|date:"M d, H:i" }}</td>
+                                                <td>{{ transaction.material_batch.material.material_name }}</td>
+                                                <td>{{ transaction.material_batch.batch_number }}</td>
+                                                <td>
+                                                    {% if transaction.transaction_type == 'received' %}
+                                                        <span class="badge bg-success">Received</span>
+                                                    {% elif transaction.transaction_type == 'dispensed' %}
+                                                        <span class="badge bg-info">Dispensed</span>
+                                                    {% elif transaction.transaction_type == 'adjusted' %}
+                                                        <span class="badge bg-warning">Adjusted</span>
+                                                    {% else %}
+                                                        <span class="badge bg-secondary">{{ transaction.transaction_type }}</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>{{ transaction.quantity }} {{ transaction.material_batch.material.unit_of_measure }}</td>
+                                                <td>{{ transaction.user.username }}</td>
+                                            </tr>
+                                        {% empty %}
+                                            <tr>
+                                                <td colspan="6" class="text-center">No recent transactions</td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Raw Materials Tab -->
+                <div class="tab-pane fade" id="materials" role="tabpanel" aria-labelledby="materials-tab">
+                    <div class="card mb-4">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0">
+                                <i class="fas fa-flask me-2"></i>Raw Materials
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <input type="text" class="form-control" id="materialSearch" placeholder="Search materials...">
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-striped">
+                                    <thead class="table-dark">
+                                        <tr>
+                                            <th>Material Name</th>
+                                            <th>Code</th>
+                                            <th>Category</th>
+                                            <th>In Stock</th>
+                                            <th>Unit</th>
+                                            <th>Supplier</th>
+                                            <th>Associated Products</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for material in materials %}
+                                            <tr data-material-id="{{ material.id }}" class="material-row">
+                                                <td><strong>{{ material.material_name }}</strong></td>
+                                                <td>{{ material.material_code }}</td>
+                                                <td>{{ material.get_category_display }}</td>
+                                                <td>
+                                                    {% if material.current_quantity < material.minimum_quantity %}
+                                                        <span class="text-danger fw-bold">{{ material.current_quantity }}</span>
+                                                    {% else %}
+                                                        {{ material.current_quantity }}
+                                                    {% endif %}
+                                                </td>
+                                                <td>{{ material.unit_of_measure }}</td>
+                                                <td>{{ material.default_supplier|default:"Not specified" }}</td>
+                                                <td>
+                                                    <button type="button" class="btn btn-sm btn-outline-info show-products" data-material-id="{{ material.id }}" data-material-name="{{ material.material_name }}">
+                                                        <i class="fas fa-cubes me-1"></i>Show Products
+                                                    </button>
+                                                </td>
+                                                <td>
+                                                    {% if material.current_quantity < material.minimum_quantity %}
+                                                        <span class="badge bg-danger">Low Stock</span>
+                                                    {% elif material.current_quantity < material.minimum_quantity|add:material.minimum_quantity %}
+                                                        <span class="badge bg-warning">Reorder</span>
+                                                    {% else %}
+                                                        <span class="badge bg-success">In Stock</span>
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                        {% empty %}
+                                            <tr>
+                                                <td colspan="7" class="text-center">No materials found</td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Receive Raw Materials Tab -->
+                <div class="tab-pane fade" id="receive-batch" role="tabpanel" aria-labelledby="receive-batch-tab">
+                    <div class="card mb-4">
+                        <div class="card-header bg-success text-white">
+                            <h5 class="mb-0">
+                                <i class="fas fa-truck-loading me-2"></i>Receive Raw Material Batch
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <form id="receiveMaterialForm" method="post">
+                                {% csrf_token %}
+                                <input type="hidden" name="form_type" value="receive_material">
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label">Select Raw Material</label>
+                                        <select name="material_id" class="form-select" required id="material_selector">
+                                            <option value="">Select Material</option>
+                                            {% for material in materials %}
+                                                <option value="{{ material.id }}" data-unit="{{ material.unit_of_measure }}" data-supplier="{{ material.default_supplier|default:'Not specified' }}">
+                                                    {{ material.material_name }} ({{ material.material_code }})
+                                                </option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Batch Number</label>
+                                        <input type="text" name="batch_number" class="form-control" placeholder="Supplier's batch number" required>
+                                    </div>
+                                </div>
+                                
+                                <div class="row mb-3">
+                                    <div class="col-md-4">
+                                        <label class="form-label">Received Quantity</label>
+                                        <input type="number" name="received_quantity" class="form-control" min="0.01" step="0.01" required>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Unit of Measure</label>
+                                        <input type="text" id="unit_display" class="form-control" readonly>
+                                        <input type="hidden" name="unit_of_measure" id="unit_hidden">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Delivery Date</label>
+                                        <input type="date" name="delivery_date" class="form-control" value="{{ today|date:'Y-m-d' }}" required>
+                                    </div>
+                                </div>
+                                
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label">Manufacturing Date</label>
+                                        <input type="date" name="manufacturing_date" class="form-control">
+                                        <small class="text-muted">Optional but recommended</small>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Expiry Date</label>
+                                        <input type="date" name="expiry_date" class="form-control" required>
+                                    </div>
+                                </div>
+                                
+                                <div class="row mb-3">
+                                    <div class="col-md-12">
+                                        <label class="form-label">Supplier Information</label>
+                                        <textarea name="supplier_info" class="form-control" rows="2" id="supplier_info_display" readonly></textarea>
+                                    </div>
+                                </div>
+                                
+                                <div class="row mb-3">
+                                    <div class="col-md-12">
+                                        <label class="form-label">Receiving Notes</label>
+                                        <textarea name="receiving_notes" class="form-control" rows="2"></textarea>
+                                    </div>
+                                </div>
+                                
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle me-2"></i> New raw material batches will automatically be queued for QC testing before they can be used in production.
+                                </div>
+                                
+                                <div class="text-end">
+                                    <button type="reset" class="btn btn-outline-secondary">
+                                        <i class="fas fa-undo me-2"></i>Reset
+                                    </button>
+                                    <button type="submit" class="btn btn-success">
+                                        <i class="fas fa-truck-loading me-2"></i>Record Received Batch
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Add New Material Tab -->
+                <div class="tab-pane fade" id="add-material" role="tabpanel" aria-labelledby="add-material-tab">
+                    <div class="card mb-4">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0">
+                                <i class="fas fa-plus-circle me-2"></i>Add New Raw Material
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <form method="post" action="{% url 'raw_materials:add_material' %}" id="add-material-form">
+                                {% csrf_token %}
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="material_name" class="form-label">Material Name</label>
+                                            <input type="text" class="form-control" id="material_name" name="material_name" required>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="material_code" class="form-label">Material Code</label>
+                                            <input type="text" class="form-control" id="material_code" name="material_code" required>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="category" class="form-label">Category</label>
+                                            <select class="form-select" id="category" name="category" required>
+                                                <option value="" selected disabled>Select Category</option>
+                                                <option value="api">API</option>
+                                                <option value="excipient">Excipient</option>
+                                                <option value="packaging">Packaging Material</option>
+                                                <option value="other">Other</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="minimum_quantity" class="form-label">Minimum Quantity</label>
+                                            <input type="number" class="form-control" id="minimum_quantity" name="minimum_quantity" step="0.01" required>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="unit_of_measure" class="form-label">Unit of Measure</label>
+                                            <select class="form-select" id="unit_of_measure" name="unit_of_measure" required>
+                                                <option value="" selected disabled>Select Unit</option>
+                                                <option value="kg">Kilograms (kg)</option>
+                                                <option value="g">Grams (g)</option>
+                                                <option value="l">Liters (L)</option>
+                                                <option value="ml">Units (u)</option>
+                                                <option value="pcs">Pieces (pcs)</option>
+                                            </select>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="default_supplier" class="form-label">Default Supplier</label>
+                                            <input type="text" class="form-control" id="default_supplier" name="default_supplier">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="description" class="form-label">Description</label>
+                                    <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="associated_products" class="form-label">Associated Products</label>
+                                    <div class="card">
+                                        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                                            <span>Select Products Used With This Material</span>
+                                            <span class="badge bg-primary" id="selectedCount">0 selected</span>
+                                        </div>
+                                        <div class="card-body p-0">
+                                            <div class="list-group product-selection-list" style="max-height: 200px; overflow-y: auto;">
+                                                {% for product in products %}
+                                                <div class="list-group-item">
+                                                    <div class="form-check">
+                                                        <input class="form-check-input product-checkbox" type="checkbox" 
+                                                               value="{{ product.id }}" id="product_{{ product.id }}">
+                                                        <label class="form-check-label" for="product_{{ product.id }}">
+                                                            {{ product.product_name }} ({{ product.get_product_type_display }})
+                                                        </label>
+                                                    </div>
+                                                </div>
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <input type="hidden" id="associated_products_hidden" name="associated_products">
+                                    <div id="selectedProductsList" class="mt-2 border-top pt-2">
+                                        <strong>Selected Products:</strong>
+                                        <div class="selected-products-tags">
+                                            <em class="text-muted">No products selected</em>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save me-2"></i>Save Material
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Associated Products Modal -->
+<div class="modal fade" id="productsModal" tabindex="-1" aria-labelledby="productsModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="productsModalLabel">Associated Products</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="productsList">
+                    <!-- Product list will be loaded here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function startRelease(bmrId, bmrNumber) {
+    const notes = prompt(`Enter notes for starting raw material release for BMR ${bmrNumber}:`);
+    if (notes !== null) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '{% url "dashboards:store_dashboard" %}';
+        
+        // Add CSRF token
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+        if (csrfToken) {
+            form.appendChild(csrfToken.cloneNode());
+        }
+        
+        // Add form data
+        const fields = {
+            'bmr_id': bmrId,
+            'action': 'start',
+            'notes': notes
+        };
+        
+        for (const [key, value] of Object.entries(fields)) {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = key;
+            input.value = value;
+            form.appendChild(input);
+        }
+        
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+
+function completeRelease(bmrId, bmrNumber) {
+    const notes = prompt(`Enter notes for completing raw material release for BMR ${bmrNumber}:`);
+    if (notes !== null) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '{% url "dashboards:store_dashboard" %}';
+        
+        // Add CSRF token
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+        if (csrfToken) {
+            form.appendChild(csrfToken.cloneNode());
+        }
+        
+        // Add form data
+        const fields = {
+            'bmr_id': bmrId,
+            'action': 'complete',
+            'notes': notes
+        };
+        
+        for (const [key, value] of Object.entries(fields)) {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = key;
+            input.value = value;
+            form.appendChild(input);
+        }
+        
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+
+// Initialize the tabs
+document.addEventListener('DOMContentLoaded', function() {
+    var triggerTabList = [].slice.call(document.querySelectorAll('#store-sidebar-tabs a'))
+    triggerTabList.forEach(function(triggerEl) {
+        var tabTrigger = new bootstrap.Tab(triggerEl)
+        triggerEl.addEventListener('click', function(event) {
+            event.preventDefault()
+            tabTrigger.show()
+        })
+    })
+    
+    // Material search functionality
+    document.getElementById('materialSearch')?.addEventListener('keyup', function() {
+        var searchValue = this.value.toLowerCase();
+        var tableRows = document.querySelectorAll('#materials table tbody tr');
+        
+        tableRows.forEach(function(row) {
+            var materialName = row.querySelector('td:first-child').textContent.toLowerCase();
+            var materialCode = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
+            var category = row.querySelector('td:nth-child(3)').textContent.toLowerCase();
+            
+            if (materialName.includes(searchValue) || materialCode.includes(searchValue) || category.includes(searchValue)) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    });
+    
+    // Show products associated with material
+    const productsModal = new bootstrap.Modal(document.getElementById('productsModal'));
+    document.querySelectorAll('.show-products').forEach(button => {
+        button.addEventListener('click', function() {
+            const materialId = this.getAttribute('data-material-id');
+            const materialName = this.getAttribute('data-material-name') || 'Material';
+            const productsList = document.getElementById('productsList');
+            
+            // Set modal title right away with material name from data attribute
+            document.getElementById('productsModalLabel').textContent = `Products Using: ${materialName}`;
+            
+            // Show loading indicator
+            productsList.innerHTML = '<div class="text-center"><div class="spinner-border text-primary" role="status"></div><p>Loading associated products...</p></div>';
+            
+            // Show modal
+            productsModal.show();
+            
+            // Directly use the simpler query parameter approach which we know works
+            fetch(`/raw-materials/api/materials/?material_id=${materialId}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Network response was not ok: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('API response:', data); // Add debugging
+                    
+                    if (data.success && data.material) {
+                        // Update title with material name from API response
+                        document.getElementById('productsModalLabel').textContent = `Products Using: ${data.material.material_name}`;
+                        
+                        // Check if products property exists at all
+                        if (!data.material.hasOwnProperty('products')) {
+                            productsList.innerHTML = '<div class="alert alert-warning">Product information is missing in the API response.</div>';
+                        } 
+                        // Check if we have any products
+                        else if (data.material.products && data.material.products.length > 0) {
+                            let html = '<ul class="list-group">';
+                            data.material.products.forEach(product => {
+                                html += `<li class="list-group-item"><i class="fas fa-prescription-bottle-alt me-2"></i>${product}</li>`;
+                            });
+                            html += '</ul>';
+                            productsList.innerHTML = html;
+                        } else {
+                            productsList.innerHTML = '<div class="alert alert-info">This material is not associated with any products.</div>';
+                        }
+                    } else {
+                        // More descriptive error message
+                        const errorMsg = data.error || 'Unknown error occurred while loading products data';
+                        productsList.innerHTML = `<div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle me-2"></i>${errorMsg}
+                        </div>`;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    productsList.innerHTML = `<div class="alert alert-danger">
+                        <i class="fas fa-exclamation-triangle me-2"></i>Error loading associated products. 
+                        <br>Details: ${error.message || 'Unknown error'}
+                    </div>`;
+                });
+        });
+    });
+    
+    // Receive Raw Materials functionality
+    const materialSelector = document.getElementById('material_selector');
+    if (materialSelector) {
+        materialSelector.addEventListener('change', function() {
+            const selectedOption = this.options[this.selectedIndex];
+            const unitDisplay = document.getElementById('unit_display');
+            const unitHidden = document.getElementById('unit_hidden');
+            const supplierInfo = document.getElementById('supplier_info_display');
+            
+            if (selectedOption.value) {
+                const unit = selectedOption.getAttribute('data-unit');
+                const supplier = selectedOption.getAttribute('data-supplier');
+                
+                unitDisplay.value = unit;
+                unitHidden.value = unit;
+                supplierInfo.value = supplier;
+                
+                // Show associated products for selected material
+                fetch(`/raw-materials/api/materials/?material_id=${selectedOption.value}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success && data.material) {
+                            const productInfo = document.createElement('div');
+                            productInfo.className = 'alert alert-info mt-2';
+                            
+                            // Check if products property exists and has entries
+                            if (data.material.products && data.material.products.length > 0) {
+                                productInfo.innerHTML = `<strong>Used in products:</strong> ${data.material.products.join(', ')}`;
+                            } else {
+                                productInfo.innerHTML = '<em>Not associated with any products</em>';
+                            }
+                            
+                            // Remove any existing product info
+                            const existingInfo = document.querySelector('#receiveMaterialForm .product-info');
+                            if (existingInfo) existingInfo.remove();
+                            
+                            // Add new product info after supplier info
+                            supplierInfo.parentNode.insertAdjacentElement('afterend', productInfo);
+                            productInfo.classList.add('product-info');
+                        }
+                    })
+                    .catch(error => {
+                        console.error("Error loading product information:", error);
+                    });
+            } else {
+                unitDisplay.value = '';
+                unitHidden.value = '';
+                supplierInfo.value = '';
+                
+                // Remove any existing product info
+                const existingInfo = document.querySelector('#receiveMaterialForm .product-info');
+                if (existingInfo) existingInfo.remove();
+            }
+        });
+    }
+    
+    // Enhance the add material form to handle associated products
+    const addMaterialForm = document.querySelector('form[action="{% url 'raw_materials:add_material' %}"]');
+    if (addMaterialForm) {
+        // Handle product selection with checkboxes
+        const productCheckboxes = document.querySelectorAll('.product-checkbox');
+        const selectedProductsList = document.querySelector('.selected-products-tags');
+        const selectedCountBadge = document.getElementById('selectedCount');
+        const associatedProductsHidden = document.getElementById('associated_products_hidden');
+        
+        // Function to update selected products display
+        function updateSelectedProducts() {
+            const selectedProducts = Array.from(document.querySelectorAll('.product-checkbox:checked'));
+            selectedCountBadge.textContent = `${selectedProducts.length} selected`;
+            
+            if (selectedProducts.length === 0) {
+                selectedProductsList.innerHTML = '<em class="text-muted">No products selected</em>';
+                associatedProductsHidden.value = '[]';
+                return;
+            }
+            
+            // Create badges for selected products
+            let html = '';
+            const productIds = [];
+            
+            selectedProducts.forEach(checkbox => {
+                const productId = checkbox.value;
+                productIds.push(productId);
+                const productName = checkbox.nextElementSibling.textContent.trim();
+                
+                html += `
+                    <span class="badge bg-info me-2 mb-2 py-2 px-3">
+                        ${productName}
+                        <button type="button" class="btn-close btn-close-white ms-2" 
+                                aria-label="Remove" data-product-id="${productId}"></button>
+                    </span>
+                `;
+            });
+            
+            selectedProductsList.innerHTML = html;
+            associatedProductsHidden.value = JSON.stringify(productIds);
+            
+            // Add event listeners to remove buttons
+            document.querySelectorAll('.selected-products-tags .btn-close').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const productId = this.getAttribute('data-product-id');
+                    document.getElementById(`product_${productId}`).checked = false;
+                    updateSelectedProducts();
+                });
+            });
+        }
+        
+        // Add change event listeners to checkboxes
+        productCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', updateSelectedProducts);
+        });
+        
+        // Initial update
+        updateSelectedProducts();
+        
+        addMaterialForm.addEventListener('submit', function(event) {
+            event.preventDefault();
+            
+            const formData = new FormData(this);
+            
+            // The hidden input already contains the JSON string of selected products
+            // from the updateSelectedProducts function
+            
+            // Submit via AJAX
+            fetch("{% url 'raw_materials:add_material' %}", {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Raw material added successfully!');
+                    addMaterialForm.reset();
+                    window.location.reload(); // Refresh to see new material
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while processing your request.');
+            });
+        });
+    }
+    
+    // Submit handler for receive material form
+    const receiveMaterialForm = document.getElementById('receiveMaterialForm');
+    if (receiveMaterialForm) {
+        receiveMaterialForm.addEventListener('submit', function(event) {
+            event.preventDefault();
+            
+            // Create a FormData object to send the form data
+            const formData = new FormData(this);
+            
+            // Send the form data via AJAX
+            fetch('{% url "dashboards:store_dashboard" %}', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    alert('Raw material batch received successfully!');
+                    // Clear the form
+                    receiveMaterialForm.reset();
+                    // Optionally refresh the page to show updated inventory
+                    window.location.reload();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while processing your request.');
+            });
+        });
+    }
+});
+</script>
+
+<!-- CSRF Token for AJAX requests -->
+{% csrf_token %}
+{% endblock %}

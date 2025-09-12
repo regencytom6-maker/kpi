@@ -1,0 +1,551 @@
+{% extends 'base.html' %}
+
+{% block title %}Store Manager Dashboard - Kampala Pharmaceutical Industries{% endblock %}
+
+{% block content %}
+<div class="alert alert-info alert-dismissible fade show" role="alert">
+    <strong>New Layout!</strong> You're using the sidebar navigation layout. To switch back to the tab layout, 
+    <a href="{% url 'dashboards:store_dashboard' %}" class="alert-link">click here</a>.
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+
+<div class="container-fluid mt-3">
+    <div class="row">
+        <!-- Sidebar Navigation -->
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Store Dashboard</h5>
+                </div>
+                <div class="list-group list-group-flush" id="store-sidebar-tabs">
+                    <a class="list-group-item list-group-item-action active" id="raw-material-release-tab" data-bs-toggle="tab" href="#raw-material-release" role="tab">
+                        <i class="fas fa-box-open me-2"></i> Raw Material Release
+                    </a>
+                    <a class="list-group-item list-group-item-action" id="inventory-monitor" href="{% url 'raw_materials:inventory_monitor' %}">
+                        <i class="fas fa-desktop me-2"></i> Inventory Monitor
+                    </a>
+                    <a class="list-group-item list-group-item-action" id="inventory-tab" data-bs-toggle="tab" href="#inventory" role="tab">
+                        <i class="fas fa-warehouse me-2"></i> Inventory Management
+                    </a>
+                    <a class="list-group-item list-group-item-action" id="materials-tab" data-bs-toggle="tab" href="#materials" role="tab">
+                        <i class="fas fa-flask me-2"></i> Raw Materials
+                    </a>
+                    <a class="list-group-item list-group-item-action" id="add-material-tab" data-bs-toggle="tab" href="#add-material" role="tab">
+                        <i class="fas fa-plus-circle me-2"></i> Add New Raw Material
+                    </a>
+                    <a class="list-group-item list-group-item-action" id="reports-tab" data-bs-toggle="tab" href="#reports" role="tab">
+                        <i class="fas fa-chart-bar me-2"></i> Reports
+                    </a>
+                </div>
+            </div>
+
+            <!-- Dashboard Stats -->
+            <div class="card mt-3">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">Dashboard Stats</h5>
+                </div>
+                <div class="card-body p-0">
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Pending Releases
+                            <span class="badge bg-primary rounded-pill">{{ stats.pending_phases }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            In Progress
+                            <span class="badge bg-warning rounded-pill">{{ stats.in_progress_phases }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Completed Today
+                            <span class="badge bg-success rounded-pill">{{ stats.completed_today }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Total Batches
+                            <span class="badge bg-info rounded-pill">{{ stats.total_batches }}</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Main Content Area -->
+        <div class="col-md-9">
+            <div class="tab-content">
+                <!-- Raw Material Release Tab -->
+                <div class="tab-pane fade show active" id="raw-material-release" role="tabpanel">
+                    <div class="card">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0">Raw Material Release</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle me-2"></i> This section allows you to manage raw material release for production batches.
+                            </div>
+                            
+                            {% if my_phases %}
+                                <div class="table-responsive">
+                                    <table class="table table-hover">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Batch Number</th>
+                                                <th>Product</th>
+                                                <th>Created Date</th>
+                                                <th>Status</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for phase in my_phases %}
+                                                <tr>
+                                                    <td>{{ phase.bmr.batch_number }}</td>
+                                                    <td>{{ phase.bmr.product.product_name }}</td>
+                                                    <td>{{ phase.bmr.created_date|date:"d M Y" }}</td>
+                                                    <td>
+                                                        {% if phase.status == 'pending' %}
+                                                            <span class="badge bg-primary">Pending</span>
+                                                        {% elif phase.status == 'in_progress' %}
+                                                            <span class="badge bg-warning">In Progress</span>
+                                                        {% elif phase.status == 'completed' %}
+                                                            <span class="badge bg-success">Completed</span>
+                                                        {% else %}
+                                                            <span class="badge bg-secondary">{{ phase.status }}</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>
+                                                        {% if phase.status == 'pending' %}
+                                                            <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#startReleaseModal" data-bmr-id="{{ phase.bmr.id }}" data-batch-number="{{ phase.bmr.batch_number }}">
+                                                                <i class="fas fa-play me-1"></i> Start
+                                                            </button>
+                                                        {% elif phase.status == 'in_progress' %}
+                                                            <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#completeReleaseModal" data-bmr-id="{{ phase.bmr.id }}" data-batch-number="{{ phase.bmr.batch_number }}">
+                                                                <i class="fas fa-check me-1"></i> Complete
+                                                            </button>
+                                                        {% endif %}
+                                                    </td>
+                                                </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            {% else %}
+                                <div class="alert alert-info">
+                                    No pending raw material releases at this time.
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Inventory Management Tab -->
+                <div class="tab-pane fade" id="inventory" role="tabpanel">
+                    <div class="card">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0">Inventory Management</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle me-2"></i> Manage your raw material inventory here.
+                            </div>
+                            
+                            <h5>Current Inventory</h5>
+                            <div class="table-responsive">
+                                <table class="table table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>Material</th>
+                                            <th>Batch</th>
+                                            <th>Quantity</th>
+                                            <th>Status</th>
+                                            <th>Expiry</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="inventory-table">
+                                        <tr>
+                                            <td colspan="5" class="text-center">Loading inventory data...</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Raw Materials Tab -->
+                <div class="tab-pane fade" id="materials" role="tabpanel">
+                    <div class="card">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0">Raw Materials</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle me-2"></i> View and manage all raw materials in the system.
+                            </div>
+                            
+                            <h5>Raw Materials List</h5>
+                            <div class="table-responsive">
+                                <table class="table table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>Name</th>
+                                            <th>Code</th>
+                                            <th>Category</th>
+                                            <th>Status</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="materials-table">
+                                        <tr>
+                                            <td colspan="5" class="text-center">Loading raw materials data...</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Add New Raw Material Tab -->
+                <div class="tab-pane fade" id="add-material" role="tabpanel">
+                    <div class="card">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0">Add New Raw Material</h5>
+                        </div>
+                        <div class="card-body">
+                            <form id="addRawMaterialForm">
+                                <div class="form-group mb-3">
+                                    <label for="materialName" class="form-label">Material Name*</label>
+                                    <input type="text" class="form-control" id="materialName" name="materialName" required>
+                                </div>
+                                
+                                <div class="form-group mb-3">
+                                    <label for="materialCode" class="form-label">Material Code*</label>
+                                    <input type="text" class="form-control" id="materialCode" name="materialCode" required>
+                                </div>
+                                
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
+                                        <label for="category" class="form-label">Category*</label>
+                                        <select class="form-select" id="category" name="category" required>
+                                            <option value="">Select Category</option>
+                                            <option value="active">Active Ingredient</option>
+                                            <option value="excipient">Excipient</option>
+                                            <option value="packaging">Packaging Material</option>
+                                            <option value="processing_aid">Processing Aid</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div class="col-md-6">
+                                        <label for="standardUnit" class="form-label">Standard Unit*</label>
+                                        <select class="form-select" id="standardUnit" name="standardUnit" required>
+                                            <option value="">Select Unit</option>
+                                            <option value="kg">Kilograms (kg)</option>
+                                            <option value="g">Grams (g)</option>
+                                            <option value="mg">Milligrams (mg)</option>
+                                            <option value="L">Liters (L)</option>
+                                            <option value="mL">Milliliters (mL)</option>
+                                            <option value="units">Units</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                
+                                <div class="form-group mb-3">
+                                    <label for="description" class="form-label">Description</label>
+                                    <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                                </div>
+                                
+                                <div class="form-group mb-3">
+                                    <label for="storageConditions" class="form-label">Storage Conditions</label>
+                                    <input type="text" class="form-control" id="storageConditions" name="storageConditions">
+                                </div>
+                                
+                                <div class="form-group mb-3">
+                                    <label for="safetyNotes" class="form-label">Safety Notes</label>
+                                    <textarea class="form-control" id="safetyNotes" name="safetyNotes" rows="2"></textarea>
+                                </div>
+                                
+                                <div class="form-group mb-3">
+                                    <label for="productAssociation" class="form-label">Product Association</label>
+                                    <select class="form-control select2" id="productAssociation" name="productAssociation[]" multiple>
+                                        <!-- Products will be loaded here via AJAX -->
+                                    </select>
+                                </div>
+                                
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save me-1"></i> Save Raw Material
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Reports Tab -->
+                <div class="tab-pane fade" id="reports" role="tabpanel">
+                    <div class="card">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0">Reports</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle me-2"></i> Generate and view reports related to raw materials and inventory.
+                            </div>
+                            
+                            <div class="list-group mb-4">
+                                <a href="#" class="list-group-item list-group-item-action">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <h5 class="mb-1"><i class="fas fa-file-alt me-2"></i> Inventory Status Report</h5>
+                                        <small><i class="fas fa-download"></i></small>
+                                    </div>
+                                    <p class="mb-1">View current inventory levels, expiry dates, and usage forecasts</p>
+                                </a>
+                                <a href="#" class="list-group-item list-group-item-action">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <h5 class="mb-1"><i class="fas fa-chart-line me-2"></i> Material Usage Report</h5>
+                                        <small><i class="fas fa-download"></i></small>
+                                    </div>
+                                    <p class="mb-1">Track raw material consumption over time by product</p>
+                                </a>
+                                <a href="#" class="list-group-item list-group-item-action">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <h5 class="mb-1"><i class="fas fa-exclamation-triangle me-2"></i> Expiry Alert Report</h5>
+                                        <small><i class="fas fa-download"></i></small>
+                                    </div>
+                                    <p class="mb-1">View raw materials nearing expiration or expired</p>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Start Release Modal -->
+<div class="modal fade" id="startReleaseModal" tabindex="-1" aria-labelledby="startReleaseModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="startReleaseModalLabel">Start Raw Material Release</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{% url 'dashboards:store_dashboard_sidebar' %}" method="post">
+                {% csrf_token %}
+                <input type="hidden" name="bmr_id" id="startReleaseBmrId">
+                <input type="hidden" name="action" value="start">
+                
+                <div class="modal-body">
+                    <p>You are about to start the raw material release process for batch <span id="startReleaseBatchNumber" class="fw-bold"></span>.</p>
+                    <p class="text-info"><i class="fas fa-info-circle me-1"></i> Raw materials will be made available for dispensing.</p>
+                    
+                    <div class="mb-3">
+                        <label for="startReleaseNotes" class="form-label">Notes:</label>
+                        <textarea class="form-control" id="startReleaseNotes" name="notes" rows="3" placeholder="Optional notes about this release"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Start Release</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Complete Release Modal -->
+<div class="modal fade" id="completeReleaseModal" tabindex="-1" aria-labelledby="completeReleaseModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title" id="completeReleaseModalLabel">Complete Raw Material Release</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{% url 'dashboards:store_dashboard_sidebar' %}" method="post">
+                {% csrf_token %}
+                <input type="hidden" name="bmr_id" id="completeReleaseBmrId">
+                <input type="hidden" name="action" value="complete">
+                
+                <div class="modal-body">
+                    <p>You are about to complete the raw material release process for batch <span id="completeReleaseBatchNumber" class="fw-bold"></span>.</p>
+                    <p class="text-success"><i class="fas fa-check-circle me-1"></i> This will make materials available for dispensing by the operator.</p>
+                    
+                    <div class="mb-3">
+                        <label for="completeReleaseNotes" class="form-label">Notes:</label>
+                        <textarea class="form-control" id="completeReleaseNotes" name="notes" rows="3" placeholder="Optional notes about this release completion"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">Complete Release</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize Select2
+    $('.select2').select2({
+        theme: 'bootstrap4',
+        placeholder: 'Select products',
+        allowClear: true
+    });
+    
+    // Load products for association
+    $.ajax({
+        type: 'GET',
+        url: '{% url "products:ajax_products_list" %}',
+        dataType: 'json',
+        success: function(data) {
+            var productSelect = $('#productAssociation');
+            
+            if (data.products && data.products.length > 0) {
+                $.each(data.products, function(index, product) {
+                    productSelect.append(new Option(product.name, product.id, false, false));
+                });
+                productSelect.trigger('change');
+            } else {
+                productSelect.append(new Option('No products available', '', true, true));
+                productSelect.prop('disabled', true);
+            }
+        },
+        error: function() {
+            console.error('Failed to load products');
+            $('#productAssociation').append(new Option('Error loading products', '', true, true));
+            $('#productAssociation').prop('disabled', true);
+        }
+    });
+    
+    // Setup modal data binding
+    var startReleaseModal = document.getElementById('startReleaseModal');
+    if (startReleaseModal) {
+        startReleaseModal.addEventListener('show.bs.modal', function(event) {
+            var button = event.relatedTarget;
+            var bmrId = button.getAttribute('data-bmr-id');
+            var batchNumber = button.getAttribute('data-batch-number');
+            
+            document.getElementById('startReleaseBmrId').value = bmrId;
+            document.getElementById('startReleaseBatchNumber').textContent = batchNumber;
+        });
+    }
+    
+    var completeReleaseModal = document.getElementById('completeReleaseModal');
+    if (completeReleaseModal) {
+        completeReleaseModal.addEventListener('show.bs.modal', function(event) {
+            var button = event.relatedTarget;
+            var bmrId = button.getAttribute('data-bmr-id');
+            var batchNumber = button.getAttribute('data-batch-number');
+            
+            document.getElementById('completeReleaseBmrId').value = bmrId;
+            document.getElementById('completeReleaseBatchNumber').textContent = batchNumber;
+        });
+    }
+    
+    // Form submission for adding raw material
+    document.getElementById('addRawMaterialForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        // Show loading indicator
+        var submitButton = this.querySelector('button[type="submit"]');
+        var originalText = submitButton.innerHTML;
+        submitButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Saving...';
+        submitButton.disabled = true;
+        
+        // Simulate successful submission after 1.5 seconds
+        setTimeout(function() {
+            submitButton.innerHTML = '<i class="fas fa-check me-1"></i> Saved!';
+            submitButton.classList.remove('btn-primary');
+            submitButton.classList.add('btn-success');
+            
+            // Reset form after 2 seconds
+            setTimeout(function() {
+                document.getElementById('addRawMaterialForm').reset();
+                submitButton.innerHTML = originalText;
+                submitButton.classList.remove('btn-success');
+                submitButton.classList.add('btn-primary');
+                submitButton.disabled = false;
+                
+                // Show success message
+                alert('Raw material added successfully!');
+            }, 2000);
+        }, 1500);
+    });
+    
+    // Sample data loading functions
+    function loadInventoryData() {
+        var tableBody = document.getElementById('inventory-table');
+        if (!tableBody) return;
+        
+        // Simulated data for demo purposes
+        var inventoryData = [
+            { material: "Paracetamol", batch: "PCM-2025-001", quantity: "500 kg", status: "Available", expiry: "Jun 2027" },
+            { material: "Magnesium Stearate", batch: "MS-2025-002", quantity: "50 kg", status: "Available", expiry: "Dec 2026" },
+            { material: "Microcrystalline Cellulose", batch: "MCC-2025-001", quantity: "200 kg", status: "Low Stock", expiry: "Mar 2027" },
+            { material: "Lactose Monohydrate", batch: "LM-2025-003", quantity: "150 kg", status: "Available", expiry: "Aug 2026" },
+            { material: "Talc", batch: "TLC-2025-002", quantity: "75 kg", status: "Available", expiry: "Oct 2026" }
+        ];
+        
+        var html = '';
+        inventoryData.forEach(function(item) {
+            let statusClass = item.status === 'Available' ? 'text-success' : 'text-warning';
+            
+            html += `<tr>
+                <td>${item.material}</td>
+                <td>${item.batch}</td>
+                <td>${item.quantity}</td>
+                <td><span class="${statusClass}">${item.status}</span></td>
+                <td>${item.expiry}</td>
+            </tr>`;
+        });
+        
+        tableBody.innerHTML = html;
+    }
+    
+    function loadMaterialsList() {
+        var tableBody = document.getElementById('materials-table');
+        if (!tableBody) return;
+        
+        // Simulated data for demo purposes
+        var materialsData = [
+            { name: "Paracetamol", code: "PCM-001", category: "Active Ingredient", status: "Active" },
+            { name: "Ibuprofen", code: "IBP-002", category: "Active Ingredient", status: "Active" },
+            { name: "Magnesium Stearate", code: "MS-001", category: "Excipient", status: "Active" },
+            { name: "Microcrystalline Cellulose", code: "MCC-001", category: "Excipient", status: "Active" },
+            { name: "Lactose Monohydrate", code: "LM-001", category: "Excipient", status: "Active" }
+        ];
+        
+        var html = '';
+        materialsData.forEach(function(item) {
+            html += `<tr>
+                <td>${item.name}</td>
+                <td>${item.code}</td>
+                <td>${item.category}</td>
+                <td><span class="badge bg-success">${item.status}</span></td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary me-1"><i class="fas fa-eye"></i></button>
+                    <button class="btn btn-sm btn-outline-secondary"><i class="fas fa-edit"></i></button>
+                </td>
+            </tr>`;
+        });
+        
+        tableBody.innerHTML = html;
+    }
+    
+    function loadProductsList() {
+        console.log("Loading products list...");
+    }
+    
+    function loadExpiryData() {
+        console.log("Loading expiry data...");
+    }
+    
+    // Initialize data
+    loadInventoryData();
+    loadMaterialsList();
+    loadProductsList();
+    loadExpiryData();
+});
+</script>
+{% endblock %}

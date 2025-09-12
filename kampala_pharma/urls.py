@@ -29,6 +29,8 @@ urlpatterns = [
     path('reports/', include('reports.urls', namespace='reports')),
     path('fgs/', include('fgs_management.urls', namespace='fgs_management')),
     path('quality/defects/', include('defect_reports.urls')),
+    path('raw-materials/', include('raw_materials.urls', namespace='raw_materials')),
+    path('products/', include('products.urls', namespace='products')),
     # API URLs will be added later
     # path('api/', include('bmr.urls')),
     # path('api/', include('workflow.urls')),
@@ -36,6 +38,7 @@ urlpatterns = [
     # path('api/', include('products.urls')),
 ]
 
-# Serve media files in development
+# Serve media and static files in development
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

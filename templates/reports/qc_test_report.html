@@ -1,0 +1,346 @@
+{% extends 'base.html' %}
+
+{% block title %}Quality Control Test Reports - Kampala Pharmaceutical Industries{% endblock %}
+
+{% block styles %}
+<style>
+    .test-stats {
+        background-color: #f8f9fa;
+        border-radius: 5px;
+        padding: 15px;
+    }
+    
+    .filter-section {
+        background-color: #f0f7ff;
+        border-left: 4px solid #0d6efd;
+        padding: 15px;
+        margin-bottom: 20px;
+    }
+    
+    .report-actions {
+        background-color: #f8f9fa;
+        padding: 15px;
+        border-radius: 5px;
+        margin-bottom: 20px;
+    }
+    
+    .test-results-pass {
+        color: #198754;
+    }
+    
+    .test-results-fail {
+        color: #dc3545;
+    }
+    
+    .test-date {
+        color: #6c757d;
+        font-size: 0.9rem;
+    }
+    
+    .highlight-row {
+        background-color: rgba(13, 110, 253, 0.05);
+    }
+    
+    @media print {
+        .no-print {
+            display: none !important;
+        }
+        
+        .print-only {
+            display: block !important;
+        }
+        
+        body {
+            padding: 0;
+            margin: 0;
+        }
+        
+        .container {
+            width: 100% !important;
+            max-width: 100% !important;
+        }
+        
+        .table {
+            width: 100% !important;
+            font-size: 10pt;
+        }
+        
+        .table th, .table td {
+            padding: 5px !important;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2 class="text-primary mb-0">
+                        <i class="fas fa-microscope me-2"></i>QC Test Reports
+                    </h2>
+                    <p class="text-muted mb-0">Raw Materials Quality Control Testing Results</p>
+                </div>
+                <div class="text-end">
+                    <small class="text-muted">Generated on: {{ today|date:"F d, Y" }}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Filter Section (No Print) -->
+    <div class="row mb-4 no-print">
+        <div class="col-12">
+            <div class="filter-section">
+                <form method="get" class="row g-3">
+                    <div class="col-md-3">
+                        <label for="materialFilter" class="form-label">Material</label>
+                        <select class="form-select" id="materialFilter" name="material">
+                            <option value="">All Materials</option>
+                            {% for material in materials %}
+                                <option value="{{ material.id }}" {% if selected_material == material.id|stringformat:"s" %}selected{% endif %}>
+                                    {{ material.material_name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="statusFilter" class="form-label">Status</label>
+                        <select class="form-select" id="statusFilter" name="status">
+                            <option value="">All Statuses</option>
+                            <option value="approved" {% if selected_status == 'approved' %}selected{% endif %}>Approved</option>
+                            <option value="rejected" {% if selected_status == 'rejected' %}selected{% endif %}>Rejected</option>
+                            <option value="pending" {% if selected_status == 'pending' %}selected{% endif %}>Pending</option>
+                            <option value="in_progress" {% if selected_status == 'in_progress' %}selected{% endif %}>In Progress</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label for="fromDate" class="form-label">From Date</label>
+                        <input type="date" class="form-control" id="fromDate" name="from_date" 
+                               value="{{ from_date|default:'' }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label for="toDate" class="form-label">To Date</label>
+                        <input type="date" class="form-control" id="toDate" name="to_date" 
+                               value="{{ to_date|default:'' }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label d-block">&nbsp;</label>
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-filter me-2"></i>Filter
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Report Actions (No Print) -->
+    <div class="row mb-4 no-print">
+        <div class="col-12">
+            <div class="report-actions d-flex justify-content-between">
+                <div>
+                    <button class="btn btn-outline-primary me-2" onclick="window.print()">
+                        <i class="fas fa-print me-2"></i>Print Report
+                    </button>
+                    <a href="{% url 'reports:export_qc_tests_csv' %}?{{ request.GET.urlencode }}" class="btn btn-outline-success me-2">
+                        <i class="fas fa-file-csv me-2"></i>Export to CSV
+                    </a>
+                    <a href="{% url 'reports:export_qc_tests_excel' %}?{{ request.GET.urlencode }}" class="btn btn-outline-success">
+                        <i class="fas fa-file-excel me-2"></i>Export to Excel
+                    </a>
+                </div>
+                <button class="btn btn-outline-secondary" onclick="window.history.back()">
+                    <i class="fas fa-arrow-left me-2"></i>Back
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Print Header (Print Only) -->
+    <div class="row mb-4 d-none print-only">
+        <div class="col-12 text-center">
+            <h3>Kampala Pharmaceutical Industries</h3>
+            <h4>Raw Materials Quality Control Test Report</h4>
+            <p>Generated on: {{ today|date:"F d, Y" }}</p>
+            {% if selected_material_name %}
+                <p>Material: {{ selected_material_name }}</p>
+            {% endif %}
+            {% if from_date or to_date %}
+                <p>Period: 
+                    {% if from_date %}From {{ from_date }}{% endif %}
+                    {% if to_date %}To {{ to_date }}{% endif %}
+                </p>
+            {% endif %}
+            <hr>
+        </div>
+    </div>
+    
+    <!-- Stats Summary -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0">{{ stats.total }}</h5>
+                            <p class="card-text">Total Tests</p>
+                        </div>
+                        <i class="fas fa-vials fa-2x opacity-75"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0">{{ stats.approved }}</h5>
+                            <p class="card-text">Approved</p>
+                        </div>
+                        <i class="fas fa-check-circle fa-2x opacity-75"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-danger text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0">{{ stats.rejected }}</h5>
+                            <p class="card-text">Rejected</p>
+                        </div>
+                        <i class="fas fa-times-circle fa-2x opacity-75"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0">{{ stats.pending }}</h5>
+                            <p class="card-text">Pending/In Progress</p>
+                        </div>
+                        <i class="fas fa-clock fa-2x opacity-75"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Test Results Table -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-clipboard-list me-2"></i>QC Test Results
+                        <span class="badge bg-light text-dark ms-2">{{ qc_tests|length }} Tests</span>
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover mb-0">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Material</th>
+                                    <th>Batch Number</th>
+                                    <th>Test Date</th>
+                                    <th>Appearance</th>
+                                    <th>Identification</th>
+                                    <th>Assay</th>
+                                    <th>Purity</th>
+                                    <th>Final Result</th>
+                                    <th>Status</th>
+                                    <th>Tested By</th>
+                                    <th class="no-print">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% if qc_tests %}
+                                    {% for test in qc_tests %}
+                                        <tr class="{% if forloop.counter|divisibleby:2 %}highlight-row{% endif %}">
+                                            <td>{{ test.material_batch.material.material_name }}</td>
+                                            <td>{{ test.material_batch.batch_number }}</td>
+                                            <td class="test-date">{{ test.test_date|date:"Y-m-d H:i" }}</td>
+                                            <td class="test-results-{{ test.appearance_result }}">{{ test.get_appearance_result_display }}</td>
+                                            <td class="test-results-{{ test.identification_result }}">{{ test.get_identification_result_display }}</td>
+                                            <td class="test-results-{{ test.assay_result }}">{{ test.get_assay_result_display|default:"N/A" }}</td>
+                                            <td class="test-results-{{ test.purity_result }}">{{ test.get_purity_result_display|default:"N/A" }}</td>
+                                            <td class="test-results-{{ test.final_result }}">
+                                                <strong>{{ test.get_final_result_display }}</strong>
+                                            </td>
+                                            <td>
+                                                {% if test.status == 'approved' %}
+                                                    <span class="badge bg-success">Approved</span>
+                                                {% elif test.status == 'rejected' %}
+                                                    <span class="badge bg-danger">Rejected</span>
+                                                {% elif test.status == 'in_progress' %}
+                                                    <span class="badge bg-info">In Progress</span>
+                                                {% else %}
+                                                    <span class="badge bg-warning text-dark">Pending</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>{{ test.tested_by.get_full_name|default:test.tested_by.username }}</td>
+                                            <td class="no-print">
+                                                <a href="{% url 'raw_materials:qc_test_detail' test.id %}" class="btn btn-sm btn-outline-primary">
+                                                    <i class="fas fa-eye"></i>
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                {% else %}
+                                    <tr>
+                                        <td colspan="11" class="text-center py-3">
+                                            <i class="fas fa-info-circle text-info me-2"></i>
+                                            No QC test records found matching your criteria
+                                        </td>
+                                    </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    $(document).ready(function() {
+        // Set default date range if not already set
+        if (!$('#fromDate').val() && !$('#toDate').val()) {
+            // Default to last 30 days
+            const today = new Date();
+            const thirtyDaysAgo = new Date(today);
+            thirtyDaysAgo.setDate(today.getDate() - 30);
+            
+            // Format dates as YYYY-MM-DD
+            const formatDate = (date) => {
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            };
+            
+            // Only set if coming to page fresh (not from a filter)
+            if (!window.location.search.includes('from_date')) {
+                $('#fromDate').val(formatDate(thirtyDaysAgo));
+            }
+            
+            if (!window.location.search.includes('to_date')) {
+                $('#toDate').val(formatDate(today));
+            }
+        }
+    });
+</script>
+{% endblock %}

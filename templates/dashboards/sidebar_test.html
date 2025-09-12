@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+
+{% block title %}Sidebar Test - Kampala Pharmaceutical Industries{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <!-- Left Sidebar Column -->
+        <div class="col-md-3 bg-light p-3 border-end" style="min-height: 500px;">
+            <h3>Left Sidebar</h3>
+            <p>This is a test sidebar panel.</p>
+            <hr>
+            <div class="list-group">
+                <a href="#" class="list-group-item list-group-item-action active">Item 1</a>
+                <a href="#" class="list-group-item list-group-item-action">Item 2</a>
+                <a href="#" class="list-group-item list-group-item-action">Item 3</a>
+            </div>
+        </div>
+        
+        <!-- Main Content Column -->
+        <div class="col-md-9 p-3">
+            <h2>Main Content</h2>
+            <p>This is where the main content would go.</p>
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i> This is a simple test to verify that the sidebar layout works correctly.
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

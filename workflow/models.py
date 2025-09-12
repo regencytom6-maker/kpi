@@ -13,6 +13,10 @@ class Machine(models.Model):
         ('blister_packing', 'Blister Packing'),
         ('bulk_packing', 'Bulk Packing'),  # For tablets and capsules
         ('filling', 'Filling'),  # For capsules
+        ('mixing', 'Mixing'),  # For ointments
+        ('tube_filling', 'Tube Filling'),  # For ointments
+        ('drying', 'Drying'),  # For capsules
+        ('sorting', 'Sorting'),  # For tablets
     ]
     
     name = models.CharField(max_length=100)

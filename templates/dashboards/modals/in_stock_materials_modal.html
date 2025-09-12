@@ -1,0 +1,237 @@
+<!-- In-Stock Materials Modal -->
+<div class="modal fade" id="inStockMaterialsModal" tabindex="-1" aria-labelledby="inStockMaterialsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="inStockMaterialsModalLabel">
+                    <i class="fas fa-cubes me-2"></i>In-Stock Materials
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Search bar -->
+                <div class="mb-3">
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="fas fa-search"></i></span>
+                        <input type="text" class="form-control" id="materialModalSearch" placeholder="Search materials...">
+                    </div>
+                </div>
+                
+                <!-- Materials table -->
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Material Name</th>
+                                <th>Code</th>
+                                <th>Category</th>
+                                <th>Available Quantity</th>
+                                <th>Reorder Level</th>
+                                <th>Status</th>
+                                <th>Batches</th>
+                            </tr>
+                        </thead>
+                        <tbody id="materialModalTableBody">
+                            {% for material in in_stock_materials %}
+                            <tr class="material-row">
+                                <td><strong>{{ material.material.material_name }}</strong></td>
+                                <td>{{ material.material.material_code }}</td>
+                                <td>{{ material.material.get_category_display }}</td>
+                                <td>
+                                    {{ material.total_quantity }} {{ material.material.unit_of_measure }}
+                                </td>
+                                <td>{{ material.material.minimum_quantity }} {{ material.material.unit_of_measure }}</td>
+                                <td>
+                                    {% if material.total_quantity < material.material.minimum_quantity %}
+                                    <span class="badge bg-warning">Low Stock</span>
+                                    {% else %}
+                                    <span class="badge bg-success">In Stock</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-info show-batches-btn" data-material-id="{{ material.material.id }}">
+                                        <i class="fas fa-boxes me-1"></i>Show Batches
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- No results message -->
+                <div id="noMaterialsFound" class="alert alert-info d-none">
+                    <i class="fas fa-info-circle me-2"></i>No materials found matching your search criteria.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <a href="#" class="btn btn-primary" id="materialTabLink">
+                    <i class="fas fa-table me-1"></i>Switch to Materials Tab
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Material Batches Modal -->
+<div class="modal fade" id="materialBatchesModal" tabindex="-1" aria-labelledby="materialBatchesModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title" id="materialBatchesModalLabel">
+                    <i class="fas fa-boxes me-2"></i>Material Batches
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="batchesList">
+                    <!-- Batches will be loaded here -->
+                    <div class="text-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p>Loading batches...</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Add search functionality for the materials modal
+document.addEventListener('DOMContentLoaded', function() {
+    // Material search in modal
+    const materialModalSearch = document.getElementById('materialModalSearch');
+    if (materialModalSearch) {
+        materialModalSearch.addEventListener('keyup', function() {
+            const searchValue = this.value.toLowerCase();
+            const tableRows = document.querySelectorAll('#materialModalTableBody tr.material-row');
+            let visibleCount = 0;
+            
+            tableRows.forEach(function(row) {
+                const materialName = row.querySelector('td:nth-child(1)').textContent.toLowerCase();
+                const materialCode = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
+                const category = row.querySelector('td:nth-child(3)').textContent.toLowerCase();
+                
+                if (materialName.includes(searchValue) || materialCode.includes(searchValue) || category.includes(searchValue)) {
+                    row.style.display = '';
+                    visibleCount++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+            
+            // Show/hide no results message
+            const noResultsMsg = document.getElementById('noMaterialsFound');
+            if (noResultsMsg) {
+                if (visibleCount === 0 && searchValue) {
+                    noResultsMsg.classList.remove('d-none');
+                } else {
+                    noResultsMsg.classList.add('d-none');
+                }
+            }
+        });
+    }
+    
+    // Switch to materials tab when button clicked
+    const materialTabLink = document.getElementById('materialTabLink');
+    if (materialTabLink) {
+        materialTabLink.addEventListener('click', function(e) {
+            e.preventDefault();
+            
+            // Close the current modal
+            const currentModal = bootstrap.Modal.getInstance(document.getElementById('inStockMaterialsModal'));
+            if (currentModal) {
+                currentModal.hide();
+            }
+            
+            // Activate the materials tab
+            const materialsTab = document.getElementById('materials-tab');
+            if (materialsTab) {
+                setTimeout(() => {
+                    materialsTab.click();
+                }, 500);
+            }
+        });
+    }
+    
+    // Show batches for a specific material
+    const showBatchesButtons = document.querySelectorAll('.show-batches-btn');
+    if (showBatchesButtons.length > 0) {
+        const batchesModal = new bootstrap.Modal(document.getElementById('materialBatchesModal'));
+        
+        showBatchesButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const materialId = this.getAttribute('data-material-id');
+                const batchesList = document.getElementById('batchesList');
+                
+                // Show loading state
+                batchesList.innerHTML = `<div class="text-center">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p>Loading batches...</p>
+                </div>`;
+                
+                // Show modal
+                batchesModal.show();
+                
+                // Fetch batches for this material
+                fetch(`/raw-materials/api/materials/?material_id=${materialId}`)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Network response was not ok');
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        if (data.success && data.material) {
+                            document.getElementById('materialBatchesModalLabel').textContent = 
+                                `Batches for: ${data.material.material_name}`;
+                            
+                            // Check if we have batches data
+                            if (data.material.batches && data.material.batches.length > 0) {
+                                let html = `<div class="table-responsive">
+                                    <table class="table table-sm table-striped">
+                                        <thead class="table-secondary">
+                                            <tr>
+                                                <th>Batch Number</th>
+                                                <th>Quantity</th>
+                                                <th>Expiry</th>
+                                                <th>Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>`;
+                                
+                                data.material.batches.forEach(batch => {
+                                    html += `<tr>
+                                        <td><strong>${batch.batch_number}</strong></td>
+                                        <td>${batch.quantity_remaining} ${data.material.unit_of_measure}</td>
+                                        <td>${batch.expiry_date}</td>
+                                        <td><span class="badge bg-${batch.status === 'approved' ? 'success' : 'warning'}">${batch.status}</span></td>
+                                    </tr>`;
+                                });
+                                
+                                html += `</tbody></table></div>`;
+                                batchesList.innerHTML = html;
+                            } else {
+                                batchesList.innerHTML = '<div class="alert alert-info">No batch information available for this material.</div>';
+                            }
+                        } else {
+                            batchesList.innerHTML = '<div class="alert alert-danger">Error loading batch information.</div>';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error fetching batches:', error);
+                        batchesList.innerHTML = '<div class="alert alert-danger">Error loading batch information.</div>';
+                    });
+            });
+        });
+    }
+});
+</script>

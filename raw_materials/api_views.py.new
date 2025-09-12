@@ -1,0 +1,366 @@
+from django.shortcuts import render, redirect, get_object_or_404
+from django.http import JsonResponse, Http404, HttpResponse
+from django.contrib.auth.decorators import login_required
+from django.views.decorators.http import require_POST
+from django.views.decorators.csrf import csrf_exempt
+from django.core.exceptions import ValidationError
+from .models import RawMaterial, RawMaterialBatch, RawMaterialQC
+from django.core.paginator import Paginator
+from django.db.models import Sum, Count, F, Q
+from django.utils import timezone
+import json
+import logging
+from datetime import datetime, timedelta
+
+@login_required
+def api_materials(request):
+    """API endpoint for raw materials data"""
+    material_id = request.GET.get('material_id')
+    include_all_products = request.GET.get('include_all_products') == 'true'
+    
+    if material_id:
+        # Return detail for a specific material
+        try:
+            material = RawMaterial.objects.get(pk=material_id)
+            
+            # Initialize product_names outside the try block to ensure it always exists
+            product_names = []
+            product_ids = []
+            all_products_data = []
+            
+            # Get associated products safely with more debug info
+            try:
+                from products.models import Product
+                import logging
+                
+                # Print debug information
+                logging.info(f"Looking up products for material: {material.material_name} (ID: {material_id})")
+                
+                # Check if any products exist at all
+                all_products_count = Product.objects.all().count()
+                logging.info(f"Total products in database: {all_products_count}")
+                
+                # Get products that have this material in their many-to-many relationship
+                products = Product.objects.filter(raw_materials=material)
+                product_names = [f"{p.product_name} ({p.get_product_type_display()})" for p in products]
+                product_ids = [p.id for p in products]
+                
+                # Log what we found
+                logging.info(f"Found {len(products)} products for material {material_id}")
+                for p in products:
+                    logging.info(f"Product: {p.product_name} ({p.get_product_type_display()})")
+                
+                # If include_all_products is true, also return a list of all products
+                if include_all_products:
+                    all_products = Product.objects.all()
+                    all_products_data = [
+                        {
+                            'id': p.id,
+                            'name': p.product_name,
+                            'type': p.get_product_type_display()
+                        }
+                        for p in all_products
+                    ]
+                
+                # If no products found, add a sample one for testing
+                if len(products) == 0 and all_products_count > 0 and not include_all_products:
+                    logging.info("No products associated, checking for available products to associate")
+                    # Get a sample product
+                    sample_product = Product.objects.first()
+                    if sample_product:
+                        logging.info(f"Adding association to product: {sample_product.product_name}")
+                        sample_product.raw_materials.add(material)
+                        sample_product.save()
+                        product_names = [f"{sample_product.product_name} ({sample_product.get_product_type_display()}) (auto-associated)"]
+                        product_ids = [sample_product.id]
+                
+            except Exception as e:
+                import logging
+                logging.error(f"Error accessing products for material {material_id}: {str(e)}")
+                # product_names is already initialized to [] outside the try block
+            
+            material_data = {
+                'id': material.id,
+                'material_code': material.material_code,
+                'material_name': material.material_name,
+                'category': material.category,
+                'category_display': material.get_category_display(),
+                'unit_of_measure': material.unit_of_measure,
+                'current_stock': float(material.current_stock),
+                'reorder_level': float(material.reorder_level),
+                'status': material.status,
+                'default_supplier': material.default_supplier,
+                'pending_qc_batches': material.pending_qc_batches,
+                'products': product_names,
+                'product_ids': product_ids
+            }
+            
+            response_data = {'success': True, 'material': material_data}
+            
+            # Add all_products to the response if requested
+            if include_all_products and all_products_data:
+                response_data['all_products'] = all_products_data
+                
+            return JsonResponse(response_data)
+            
+        except RawMaterial.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Material not found'})
+    
+    # Return list of all materials
+    materials = RawMaterial.objects.all()
+    
+    materials_data = []
+    for material in materials:
+        # Get associated products for each material
+        try:
+            products = material.products.all()
+            product_names = [f"{p.product_name} ({p.get_product_type_display()})" for p in products]
+        except Exception as e:
+            import logging
+            logging.error(f"Error accessing products for material {material.id}: {str(e)}")
+            product_names = []
+            
+        materials_data.append({
+            'id': material.id,
+            'material_code': material.material_code,
+            'material_name': material.material_name,
+            'category': material.category,
+            'category_display': material.get_category_display(),
+            'unit_of_measure': material.unit_of_measure,
+            'current_stock': float(material.current_stock),
+            'reorder_level': float(material.reorder_level),
+            'status': material.status,
+            'default_supplier': material.default_supplier,
+            'pending_qc_batches': material.pending_qc_batches,
+            'products': product_names  # Include associated products
+        })
+    
+    return JsonResponse({'success': True, 'materials': materials_data})
+
+@login_required
+def api_material_detail(request, material_id):
+    """Get detailed information for a specific material including batches"""
+    try:
+        material = get_object_or_404(RawMaterial, pk=material_id)
+        
+        # Get batches for this material
+        batches = RawMaterialBatch.objects.filter(material=material)
+        
+        # Format batch data
+        batches_data = []
+        for batch in batches:
+            # Get QC info if available
+            qc_info = {}
+            try:
+                qc = batch.qc_checks.first()  # Assuming one QC check per batch
+                if qc:
+                    qc_info = {
+                        'id': qc.id,
+                        'status': qc.status,
+                        'tested_by': qc.tested_by.username if qc.tested_by else None,
+                        'test_date': qc.test_date.strftime('%Y-%m-%d') if qc.test_date else None,
+                    }
+            except Exception as e:
+                pass
+                
+            batches_data.append({
+                'id': batch.id,
+                'batch_number': batch.batch_number,
+                'quantity_received': float(batch.quantity_received),
+                'quantity_remaining': float(batch.quantity_remaining),
+                'status': batch.status,
+                'date_received': batch.date_received.strftime('%Y-%m-%d'),
+                'qc_status': batch.qc_status,
+                'expiry_date': batch.expiry_date.strftime('%Y-%m-%d') if batch.expiry_date else None,
+                'manufacturer': batch.manufacturer,
+                'qc_info': qc_info,
+            })
+        
+        # Get products that use this material
+        product_names = []
+        try:
+            # Find products that have this material in their many-to-many field
+            from products.models import Product
+            products = Product.objects.filter(raw_materials=material)
+            product_names = [f"{p.product_name} ({p.get_product_type_display()})" for p in products]
+        except Exception as e:
+            logging.error(f"Error accessing products: {str(e)}")
+        
+        # Build response
+        material_data = {
+            'id': material.id,
+            'material_code': material.material_code,
+            'material_name': material.material_name,
+            'category': material.category,
+            'category_display': material.get_category_display(),
+            'unit_of_measure': material.unit_of_measure,
+            'current_stock': float(material.current_stock),
+            'reorder_level': float(material.reorder_level),
+            'batches': batches_data,
+            'products': product_names
+        }
+        
+        return JsonResponse({'success': True, 'material': material_data})
+    
+    except Exception as e:
+        logging.error(f"Error in api_material_detail: {str(e)}")
+        return JsonResponse({'success': False, 'error': str(e)})
+
+@login_required
+def api_material_batches(request, material_id):
+    """Get batches for a specific material"""
+    try:
+        material = get_object_or_404(RawMaterial, pk=material_id)
+        
+        # Get batches for this material
+        batches = RawMaterialBatch.objects.filter(material=material)
+        
+        # Format batch data
+        batches_data = []
+        for batch in batches:
+            batches_data.append({
+                'id': batch.id,
+                'batch_number': batch.batch_number,
+                'quantity_received': float(batch.quantity_received),
+                'quantity_remaining': float(batch.quantity_remaining),
+                'status': batch.status,
+                'date_received': batch.date_received.strftime('%Y-%m-%d'),
+                'expiry_date': batch.expiry_date.strftime('%Y-%m-%d') if batch.expiry_date else None,
+            })
+        
+        return JsonResponse({'success': True, 'batches': batches_data})
+    
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+@login_required
+def api_qc_results(request, batch_id):
+    """Get QC results for a specific batch"""
+    try:
+        batch = get_object_or_404(RawMaterialBatch, pk=batch_id)
+        
+        # Get QC checks for this batch
+        qc_checks = RawMaterialQC.objects.filter(batch=batch)
+        
+        # Format QC data
+        qc_data = []
+        for qc in qc_checks:
+            qc_data.append({
+                'id': qc.id,
+                'status': qc.status,
+                'tested_by': qc.tested_by.username if qc.tested_by else 'N/A',
+                'test_date': qc.test_date.strftime('%Y-%m-%d') if qc.test_date else 'N/A',
+                'remarks': qc.remarks,
+                'parameters': qc.parameters
+            })
+        
+        return JsonResponse({'success': True, 'qc_checks': qc_data})
+    
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+@login_required
+@require_POST
+def api_add_material(request):
+    """API endpoint to add a new raw material"""
+    try:
+        # Get parameters
+        material_code = request.POST.get('material_code')
+        material_name = request.POST.get('material_name')
+        category = request.POST.get('category')
+        unit_of_measure = request.POST.get('unit_of_measure')
+        reorder_level = request.POST.get('reorder_level')
+        default_supplier = request.POST.get('default_supplier', '')
+        
+        # Check for required fields
+        if not all([material_code, material_name, category, unit_of_measure]):
+            return JsonResponse({'success': False, 'error': 'Missing required fields'})
+        
+        # Check if material code already exists
+        if RawMaterial.objects.filter(material_code=material_code).exists():
+            return JsonResponse({'success': False, 'error': 'Material code already exists'})
+        
+        # Create new material
+        material = RawMaterial(
+            material_code=material_code,
+            material_name=material_name,
+            category=category,
+            unit_of_measure=unit_of_measure,
+            reorder_level=float(reorder_level) if reorder_level else 0,
+            default_supplier=default_supplier
+        )
+        material.save()
+        # Handle associated products if provided
+        associated_products = request.POST.get('associated_products', '[]')
+        import json
+        try:
+            products = json.loads(associated_products)
+            from products.models import Product
+            for product_id in products:
+                try:
+                    product = Product.objects.get(pk=product_id)
+                    product.raw_materials.add(material)
+                except Product.DoesNotExist:
+                    continue
+        except json.JSONDecodeError:
+            pass
+        
+        return JsonResponse({
+            'success': True,
+            'material': {
+                'id': material.id,
+                'material_code': material.material_code,
+                'material_name': material.material_name
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+@login_required
+@require_POST
+def api_update_associations(request):
+    """API endpoint to update product associations for a raw material"""
+    try:
+        material_id = request.POST.get('material_id')
+        product_ids_json = request.POST.get('product_ids')
+        
+        if not material_id or not product_ids_json:
+            return JsonResponse({'success': False, 'error': 'Missing required fields'})
+        
+        try:
+            import json
+            product_ids = json.loads(product_ids_json)
+            
+            # Get the material
+            material = RawMaterial.objects.get(pk=material_id)
+            
+            # Import Product model
+            from products.models import Product
+            
+            # Clear existing associations first
+            material.products.clear()
+            
+            # Add new associations
+            for product_id in product_ids:
+                try:
+                    product = Product.objects.get(pk=product_id)
+                    product.raw_materials.add(material)
+                except Product.DoesNotExist:
+                    # Skip products that don't exist
+                    continue
+            
+            return JsonResponse({
+                'success': True,
+                'message': f'Updated product associations for {material.material_name}'
+            })
+            
+        except json.JSONDecodeError:
+            return JsonResponse({'success': False, 'error': 'Invalid product IDs format'})
+        except RawMaterial.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Material not found'})
+            
+    except Exception as e:
+        import logging
+        logging.error(f"Error updating product associations: {str(e)}")
+        return JsonResponse({'success': False, 'error': str(e)})

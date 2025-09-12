@@ -1,0 +1,186 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load raw_material_filters %}
+
+{% block title %}
+    {% if status %}
+        {{ status_display|get_item:status }} Raw Material Batches
+    {% else %}
+        All Raw Material Batches
+    {% endif %}
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .badge-pending_qc {
+        background-color: #ffc107;
+        color: #212529;
+    }
+    .badge-approved {
+        background-color: #28a745;
+        color: white;
+    }
+    .badge-rejected {
+        background-color: #dc3545;
+        color: white;
+    }
+    .badge-expired {
+        background-color: #6c757d;
+        color: white;
+    }
+    .badge-disposed {
+        background-color: #343a40;
+        color: white;
+    }
+    .batch-card {
+        transition: all 0.2s ease;
+    }
+    .batch-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .status-filter .active {
+        font-weight: bold;
+        border-bottom: 2px solid #007bff;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{% url 'dashboards:dashboard_home' %}">Home</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'raw_materials:dashboard' %}">Raw Materials</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">
+                        {% if status %}
+                            {{ status_display|get_item:status }} Batches
+                        {% else %}
+                            All Batches
+                        {% endif %}
+                    </li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-lg-8">
+            <h2>
+                {% if material_name %}
+                    {{ material_name }} - 
+                {% endif %}
+                
+                {% if status %}
+                    {{ status_display|get_item:status }} Raw Material Batches
+                {% else %}
+                    All Raw Material Batches
+                {% endif %}
+            </h2>
+        </div>
+        <div class="col-lg-4 text-end">
+            <a href="{% url 'raw_materials:dashboard' %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-2"></i> Back to Dashboard
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-3">
+            <!-- Sidebar with filters -->
+            <div class="card mb-4">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">Batch Status</h5>
+                </div>
+                <div class="list-group list-group-flush status-filter">
+                    <a href="{% url 'raw_materials:batch_list' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center {% if not status %}active{% endif %}">
+                        All Batches
+                        <span class="badge bg-secondary rounded-pill">{{ batches.count }}</span>
+                    </a>
+                    <a href="{% url 'raw_materials:pending_batches' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center {% if status == 'pending_qc' %}active{% endif %}">
+                        Pending QC
+                        <span class="badge badge-pending_qc rounded-pill">{{ pending_count }}</span>
+                    </a>
+                    <a href="{% url 'raw_materials:approved_batches' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center {% if status == 'approved' %}active{% endif %}">
+                        Approved
+                        <span class="badge badge-approved rounded-pill">{{ approved_count }}</span>
+                    </a>
+                    <a href="{% url 'raw_materials:rejected_batches' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center {% if status == 'rejected' %}active{% endif %}">
+                        Rejected
+                        <span class="badge badge-rejected rounded-pill">{{ rejected_count }}</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-9">
+            <!-- Batch list -->
+            {% if batches %}
+                <div class="row">
+                    {% for batch in batches %}
+                        <div class="col-md-6 mb-4">
+                            <div class="card batch-card h-100">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <h5 class="mb-0">{{ batch.batch_number }}</h5>
+                                    <span class="badge badge-{{ batch.status }} px-3 py-2">{{ status_display|get_item:batch.status }}</span>
+                                </div>
+                                <div class="card-body">
+                                    <h6 class="card-subtitle mb-2 text-muted">{{ batch.material.material_name }}</h6>
+                                    <p class="mb-1"><strong>Received:</strong> {{ batch.received_date }}</p>
+                                    <p class="mb-1"><strong>Quantity:</strong> {{ batch.quantity_remaining }} {{ batch.material.unit_of_measure }}</p>
+                                    <p class="mb-1"><strong>Expiry:</strong> {{ batch.expiry_date }}</p>
+                                    
+                                    {% if batch.status == 'approved' %}
+                                        <div class="alert alert-success mt-2 mb-0 py-2">
+                                            <small><i class="fas fa-check-circle me-1"></i> Approved for use</small>
+                                        </div>
+                                    {% elif batch.status == 'pending_qc' %}
+                                        <div class="alert alert-warning mt-2 mb-0 py-2">
+                                            <small><i class="fas fa-hourglass-half me-1"></i> Awaiting QC testing</small>
+                                        </div>
+                                    {% elif batch.status == 'rejected' %}
+                                        <div class="alert alert-danger mt-2 mb-0 py-2">
+                                            <small><i class="fas fa-times-circle me-1"></i> Failed QC testing</small>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                <div class="card-footer bg-transparent border-0">
+                                    <a href="{% url 'raw_materials:material_detail' batch.material.id %}?batch={{ batch.id }}" class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-eye me-1"></i> View Details
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    No raw material batches found with the selected criteria.
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    $(document).ready(function() {
+        // Highlight expired batches
+        $("[data-expiry]").each(function() {
+            var expiryDate = new Date($(this).data('expiry'));
+            var today = new Date();
+            var monthsLeft = (expiryDate - today) / (1000 * 60 * 60 * 24 * 30);
+            
+            if (expiryDate < today) {
+                $(this).addClass('text-danger fw-bold');
+            } else if (monthsLeft <= 3) {
+                $(this).addClass('text-warning fw-bold');
+            }
+        });
+    });
+</script>
+{% endblock %}

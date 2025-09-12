@@ -1,7 +1,28 @@
 {% extends 'base.html' %}
-
+{% load static %}
 {% block title %}Quality Control Dashboard - Kampala Pharmaceutical Industries{% endblock %}
-
+{% block head %}
+<!-- Security headers -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' https:; frame-ancestors 'self'; script-src 'self' https: 'unsafe-inline' 'unsafe-eval'; style-src 'self' https: 'unsafe-inline';">
+<meta http-equiv="X-Content-Type-Options" content="nosniff">
+<meta http-equiv="Cache-Control" content="no-store, max-age=0">
+{% endblock %}
+{% block styles %}
+<!-- DataTables CSS -->
+<link rel="stylesheet" href="https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.2.9/css/responsive.bootstrap5.min.css">
+<!-- QC Custom Styles -->
+<link rel="stylesheet" href="{% static 'css/qc_styles.css' %}">
+{% endblock %}
+{% block scripts %}
+<!-- DataTables JS (jQuery is already loaded in base.html) -->
+<script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.2.9/js/dataTables.responsive.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.2.9/js/responsive.bootstrap5.min.js"></script>
+<!-- QC Save Handler -->
+<script src="{% static 'js/qc_save_handler.js' %}"></script>
+{% endblock %}
 {% block content %}
 <div class="container-fluid mt-4">
     <!-- Header -->
@@ -21,326 +42,1478 @@
             </div>
         </div>
     </div>
-
     <!-- Statistics Cards -->
-    <div class="row mb-4">
+    <div class="row mb-4 statistics-cards">
         <div class="col-md-3">
-            <div class="card bg-warning text-white">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h5 class="card-title mb-0">{{ stats.pending_tests }}</h5>
-                            <p class="card-text">Pending Tests</p>
+            <a href="#pending-tests" class="text-decoration-none" data-bs-toggle="tab" role="tab" aria-controls="pending-tests" aria-selected="true">
+                <div class="card bg-warning text-white">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h5 class="card-title mb-0">{{ stats.pending_tests }}</h5>
+                                <p class="card-text">Pending Tests</p>
+                                <small class="text-white-50">Click to view</small>
+                            </div>
+                            <i class="fas fa-clock fa-2x opacity-75"></i>
                         </div>
-                        <i class="fas fa-clock fa-2x opacity-75"></i>
                     </div>
                 </div>
-            </div>
+            </a>
         </div>
         <div class="col-md-3">
-            <div class="card bg-info text-white">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h5 class="card-title mb-0">{{ stats.in_testing }}</h5>
-                            <p class="card-text">In Testing</p>
+            <a href="#in-progress" class="text-decoration-none" data-bs-toggle="tab" role="tab" aria-controls="in-progress" aria-selected="false">
+                <div class="card bg-info text-white">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h5 class="card-title mb-0">{{ stats.in_testing }}</h5>
+                                <p class="card-text">In Testing</p>
+                                <small class="text-white-50">Click to view</small>
+                            </div>
+                            <i class="fas fa-vial fa-2x opacity-75"></i>
                         </div>
-                        <i class="fas fa-vial fa-2x opacity-75"></i>
                     </div>
                 </div>
-            </div>
+            </a>
         </div>
         <div class="col-md-3">
-            <div class="card bg-success text-white">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h5 class="card-title mb-0">{{ stats.passed_today }}</h5>
-                            <p class="card-text">Passed Today</p>
+            <a href="#test-history" class="text-decoration-none" data-bs-toggle="tab" role="tab" aria-controls="test-history" aria-selected="false">
+                <div class="card bg-success text-white">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h5 class="card-title mb-0">{{ stats.passed_today }}</h5>
+                                <p class="card-text">Passed Today</p>
+                                <small class="text-white-50">Click to view history</small>
+                            </div>
+                            <i class="fas fa-check-circle fa-2x opacity-75"></i>
                         </div>
-                        <i class="fas fa-check-circle fa-2x opacity-75"></i>
                     </div>
                 </div>
-            </div>
+            </a>
         </div>
         <div class="col-md-3">
-            <div class="card bg-danger text-white">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h5 class="card-title mb-0">{{ stats.failed_this_week }}</h5>
-                            <p class="card-text">Failed This Week</p>
+            <a href="#test-failures" class="text-decoration-none" data-bs-toggle="tab" role="tab" aria-controls="test-failures" aria-selected="false">
+                <div class="card bg-danger text-white">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h5 class="card-title mb-0">{{ stats.failed_this_week }}</h5>
+                                <p class="card-text">Failed This Week</p>
+                                <small class="text-white-50">Click to view details</small>
+                            </div>
+                            <i class="fas fa-times-circle fa-2x opacity-75"></i>
                         </div>
-                        <i class="fas fa-times-circle fa-2x opacity-75"></i>
                     </div>
                 </div>
-            </div>
+            </a>
         </div>
     </div>
-
-    <!-- Quality Control Testing Queue -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card">
+    
+    
+    <div class="row mt-4">
+        <!-- Sidebar Navigation -->
+        <div class="col-md-3">
+            <!-- Navigation Menu -->
+            <div class="card mb-4">
                 <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0">
-                        <i class="fas fa-flask me-2"></i>Quality Control Testing Queue
-                    </h5>
+                    <h5 class="mb-0">QC Dashboard</h5>
                 </div>
-                <div class="card-body">
-                    {% if qc_phases %}
-                        <div class="table-responsive">
-                            <table class="table table-striped table-hover">
-                                <thead class="table-dark">
-                                    <tr>
-                                        <th>BMR Number</th>
-                                        <th>Product</th>
-                                        <th>Product Type</th>
-                                        <th>Batch Size</th>
-                                        <th>Production Date</th>
-                                        <th>Status</th>
-                                        <th>Priority</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for phase in qc_phases %}
-                                    <tr>
-                                        <td>
-                                            <strong class="text-primary">{{ phase.bmr.bmr_number }}</strong>
-                                        </td>
-                                        <td>{{ phase.bmr.product.product_name }}</td>
-                                        <td>
-                                            <span class="badge bg-secondary">{{ phase.bmr.product.get_product_type_display }}</span>
-                                        </td>
-                                        <td>{{ phase.bmr.batch_size|floatformat:0 }} {{ phase.bmr.product.unit_of_measure }}</td>
-                                        <td>{{ phase.bmr.created_date|date:"M d, Y" }}</td>
-                                        <td>
-                                            {% if phase.status == 'pending' %}
-                                                <span class="badge bg-warning">Awaiting Test</span>
-                                            {% elif phase.status == 'in_progress' %}
-                                                <span class="badge bg-info">Testing</span>
-                                            {% else %}
-                                                <span class="badge bg-success">{{ phase.status|title }}</span>
-                                            {% endif %}
-                                        </td>
-                                        <td>
-                                            {% if phase.bmr.created_date|timesince|slice:":2" == "0 " %}
-                                                <span class="badge bg-danger">Critical</span>
-                                            {% elif phase.bmr.created_date|timesince|slice:":1" == "1" %}
-                                                <span class="badge bg-warning">High</span>
-                                            {% else %}
-                                                <span class="badge bg-success">Normal</span>
-                                            {% endif %}
-                                        </td>
-                                        <td>
-                                            <div class="btn-group btn-group-sm">
-                                                <a href="{% url 'bmr:detail' phase.bmr.pk %}" 
-                                                   class="btn btn-outline-primary btn-sm">
-                                                    <i class="fas fa-eye"></i> View
-                                                </a>
-                                                {% if phase.status == 'pending' %}
-                                                <button class="btn btn-outline-info btn-sm"
-                                                        onclick="startTesting('{{ phase.id }}', '{{ phase.phase.phase_name }}', '{{ phase.bmr.batch_number }}')">
-                                                    <i class="fas fa-play"></i> Start Test
-                                                </button>
-                                                {% elif phase.status == 'in_progress' %}
-                                                <button class="btn btn-outline-success btn-sm"
-                                                        onclick="passTest('{{ phase.id }}', '{{ phase.phase.phase_name }}', '{{ phase.bmr.batch_number }}')">
-                                                    <i class="fas fa-check"></i> Pass
-                                                </button>
-                                                <button class="btn btn-outline-danger btn-sm"
-                                                        onclick="failTest('{{ phase.id }}', '{{ phase.phase.phase_name }}', '{{ phase.bmr.batch_number }}')">
-                                                    <i class="fas fa-times"></i> Fail
-                                                </button>
-                                                {% endif %}
-                                            </div>
-                                        </td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                    {% else %}
-                        <div class="text-center py-5">
-                            <i class="fas fa-clipboard-check fa-3x text-success mb-3"></i>
-                            <h5 class="text-muted">No Pending QC Tests</h5>
-                            <p class="text-muted">All quality control tests are up to date.</p>
-                        </div>
-                    {% endif %}
+                <div class="list-group list-group-flush" id="qc-sidebar-tabs" role="tablist">
+                    <a class="list-group-item list-group-item-action active" id="pending-tests-tab" data-bs-toggle="tab" href="#pending-tests" role="tab" aria-controls="pending-tests" aria-selected="true">
+                        <i class="fas fa-flask me-2"></i>Pending Tests
+                    </a>
+                    
+                    <a class="list-group-item list-group-item-action" id="raw-materials-tab" data-bs-toggle="tab" href="#raw-materials" role="tab" aria-controls="raw-materials" aria-selected="false">
+                        <i class="fas fa-boxes me-2"></i>Raw Materials QC
+                        {% if stats.pending_raw_materials > 0 %}
+                            <span class="badge bg-danger">{{ stats.pending_raw_materials }}</span>
+                        {% endif %}
+                    </a>
+                    
+                    <a class="list-group-item list-group-item-action" id="in-progress-tab" data-bs-toggle="tab" href="#in-progress" role="tab" aria-controls="in-progress" aria-selected="false">
+                        <i class="fas fa-spinner me-2"></i>In Progress Tests
+                    </a>
+                    
+                    <a class="list-group-item list-group-item-action" id="completed-tab" data-bs-toggle="tab" href="#completed" role="tab" aria-controls="completed" aria-selected="false">
+                        <i class="fas fa-check-double me-2"></i>Completed Tests
+                    </a>
+                    
+                    <a class="list-group-item list-group-item-action" id="reports-tab" data-bs-toggle="tab" href="#reports" role="tab" aria-controls="reports" aria-selected="false">
+                        <i class="fas fa-chart-bar me-2"></i>QC Reports
+                    </a>
+                    
+                    <a class="list-group-item list-group-item-action" id="specifications-tab" data-bs-toggle="tab" href="#specifications" role="tab" aria-controls="specifications" aria-selected="false">
+                        <i class="fas fa-clipboard-list me-2"></i>Specifications
+                    </a>
                 </div>
             </div>
-        </div>
-    </div>
-
-    <!-- Recent Test Results -->
-    <div class="row">
-        <div class="col-md-8">
-            <div class="card">
+            
+            <!-- Material QC Stats -->
+            <div class="card mb-4">
                 <div class="card-header bg-info text-white">
-                    <h5 class="mb-0">
-                        <i class="fas fa-chart-bar me-2"></i>Recent Test Results
-                    </h5>
+                    <h5 class="mb-0"><i class="fas fa-boxes me-2"></i>Material QC</h5>
                 </div>
-                <div class="card-body">
-                    {% if recent_results %}
-                        <div class="table-responsive">
-                            <table class="table table-sm">
-                                <thead>
-                                    <tr>
-                                        <th>BMR</th>
-                                        <th>Product</th>
-                                        <th>Test Date</th>
-                                        <th>Result</th>
-                                        <th>Tested By</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for result in recent_results %}
-                                    <tr>
-                                        <td>{{ result.bmr.bmr_number }}</td>
-                                        <td>{{ result.bmr.product.product_name }}</td>
-                                        <td>{{ result.completed_date|date:"M d, H:i" }}</td>
-                                        <td>
-                                            {% if result.status == 'completed' %}
-                                                <span class="badge bg-success">Passed</span>
-                                            {% else %}
-                                                <span class="badge bg-danger">Failed</span>
-                                            {% endif %}
-                                        </td>
-                                        <td>{{ result.completed_by.get_full_name|default:result.completed_by.username }}</td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
+                <div class="list-group list-group-flush">
+                    <a href="#raw-materials" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" data-bs-toggle="tab" role="tab" aria-controls="raw-materials">
+                        <div>
+                            <i class="fas fa-hourglass-half me-2 text-primary"></i>Pending QC
                         </div>
-                    {% else %}
-                        <p class="text-muted text-center">No recent test results.</p>
-                    {% endif %}
+                        <span class="badge bg-primary rounded-pill">{{ stats.pending_raw_materials }}</span>
+                    </a>
+                    <a href="#qc-in-progress" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" data-bs-toggle="tab" role="tab" aria-controls="qc-in-progress">
+                        <div>
+                            <i class="fas fa-microscope me-2 text-secondary"></i>In Testing
+                        </div>
+                        <span class="badge bg-secondary rounded-pill">{{ stats.raw_materials_testing }}</span>
+                    </a>
+                    <a href="#qc-approved" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" data-bs-toggle="tab" role="tab" aria-controls="qc-approved">
+                        <div>
+                            <i class="fas fa-clipboard-check me-2 text-success"></i>Approved Today
+                        </div>
+                        <span class="badge bg-success rounded-pill">{{ stats.raw_materials_approved_today }}</span>
+                    </a>
+                    <a href="#qc-rejected" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" data-bs-toggle="tab" role="tab" aria-controls="qc-rejected">
+                        <div>
+                            <i class="fas fa-times-circle me-2 text-danger"></i>Rejected This Week
+                        </div>
+                        <span class="badge bg-danger rounded-pill">{{ stats.raw_materials_rejected_week }}</span>
+                    </a>
                 </div>
             </div>
         </div>
-        
-        <div class="col-md-4">
-            <div class="card">
-                <div class="card-header bg-success text-white">
-                    <h5 class="mb-0">
-                        <i class="fas fa-clipboard-list me-2"></i>QC Guidelines
-                    </h5>
+        <!-- Main Content -->
+        <div class="col-lg-9 col-md-8">
+            <div class="tab-content" id="qcTabsContent">
+                <!-- Pending Tests Tab -->
+                <div class="tab-pane fade show active" id="pending-tests" role="tabpanel">
+                    <div class="card">
+                        <div class="card-header bg-warning text-white">
+                            <h5 class="mb-0">
+                                <i class="fas fa-flask me-2"></i>Pending Quality Control Tests
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            {% if pending_phases %}
+                                <div class="table-responsive">
+                                    <table class="table table-striped table-hover">
+                                        <thead class="table-dark">
+                                            <tr>
+                                                <th>BMR Number</th>
+                                                <th>Product</th>
+                                                <th>Phase</th>
+                                                <th>Batch Size</th>
+                                                <th>Priority</th>
+                                                <th>Status</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for phase in pending_phases %}
+                                            <tr>
+                                                <td><strong>{{ phase.bmr.bmr_number }}</strong></td>
+                                                <td>{{ phase.bmr.product.product_name }}</td>
+                                                <td>{{ phase.phase.get_phase_name_display }}</td>
+                                                <td>{{ phase.bmr.batch_size|floatformat:0 }} {{ phase.bmr.product.unit_of_measure }}</td>
+                                                <td>
+                                                    {% if phase.bmr.created_date|timesince|slice:":1" == "0" %}
+                                                        <span class="badge bg-danger">Urgent</span>
+                                                    {% elif phase.bmr.created_date|timesince|slice:":1" == "1" %}
+                                                        <span class="badge bg-warning">High</span>
+                                                    {% else %}
+                                                        <span class="badge bg-success">Normal</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    <span class="badge bg-warning">Pending</span>
+                                                </td>
+                                                <td>
+                                                    <button type="button" class="btn btn-sm btn-primary" onclick="startTest('{{ phase.id }}', '{{ phase.bmr.bmr_number }}')">
+                                                        <i class="fas fa-play"></i> Start Test
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            {% else %}
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle me-2"></i>No pending quality control tests at the moment.
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
                 </div>
-                <div class="card-body">
-                    <h6>Testing Standards:</h6>
-                    <ul class="list-unstyled">
-                        <li><i class="fas fa-check text-success"></i> Verify sample integrity</li>
-                        <li><i class="fas fa-check text-success"></i> Follow test protocols</li>
-                        <li><i class="fas fa-check text-success"></i> Document all parameters</li>
-                        <li><i class="fas fa-check text-success"></i> Review acceptance criteria</li>
-                        <li><i class="fas fa-check text-success"></i> Sign off test results</li>
-                    </ul>
-                    
-                    <hr>
-                    
-                    <h6>Critical Tests:</h6>
-                    <ul class="list-unstyled small">
-                        <li><strong>Tablets:</strong> Assay, Dissolution, Hardness</li>
-                        <li><strong>Ointments:</strong> Assay, Viscosity, Microbial</li>
-                        <li><strong>Capsules:</strong> Assay, Disintegration, Weight</li>
-                    </ul>
+                
+                <!-- Raw Materials QC Tab -->
+                <div class="tab-pane fade" id="raw-materials" role="tabpanel">
+                    <div class="card">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0">
+                                <i class="fas fa-boxes me-2"></i>Raw Materials Quality Control
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <!-- Raw Materials Pending QC -->
+                            <h5 class="mb-3">Pending Raw Material QC</h5>
+                            {% if pending_raw_materials %}
+                                <div class="table-responsive">
+                                    <table class="table table-striped table-hover">
+                                        <thead class="table-dark">
+                                            <tr>
+                                                <th>Material</th>
+                                                <th>Batch Number</th>
+                                                <th>Quantity</th>
+                                                <th>Supplier</th>
+                                                <th>Received Date</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for batch in pending_raw_materials %}
+                                            <tr>
+                                                <td><strong>{{ batch.material.material_name }}</strong></td>
+                                                <td>{{ batch.batch_number }}</td>
+                                                <td>{{ batch.quantity }} {{ batch.material.unit_of_measure }}</td>
+                                                <td>{{ batch.supplier|default:batch.material.default_supplier }}</td>
+                                                <td>{{ batch.received_date|date:"M d, Y" }}</td>
+                                                <td>
+                                                    <button type="button" class="btn btn-sm btn-success me-1" onclick="testFunction()">
+                                                        <i class="fas fa-check"></i> Test JS
+                                                    </button>
+                                                    <button type="button" class="btn btn-sm btn-primary" onclick="startMaterialQC('{{ batch.id }}', '{{ batch.material.material_name }}')">
+                                                        <i class="fas fa-vial"></i> Start QC
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            {% else %}
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle me-2"></i>No raw materials pending quality control.
+                                </div>
+                            {% endif %}
+                            
+                            <!-- In Progress Raw Material QC -->
+                            <h5 class="mt-4 mb-3">In Progress Raw Material QC</h5>
+                            {% if in_progress_raw_materials %}
+                                <div class="table-responsive">
+                                    <table class="table table-striped table-hover">
+                                        <thead class="table-dark">
+                                            <tr>
+                                                <th>Material</th>
+                                                <th>Batch Number</th>
+                                                <th>Started By</th>
+                                                <th>Started Date</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for qc in in_progress_raw_materials %}
+                                            <tr>
+                                                <td><strong>{{ qc.material_batch.material.material_name }}</strong></td>
+                                                <td>{{ qc.material_batch.batch_number }}</td>
+                                                <td>{{ qc.started_by.get_full_name }}</td>
+                                                <td>{{ qc.started_date|date:"M d, H:i" }}</td>
+                                                <td>
+                                                    <button type="button" class="btn btn-sm btn-success" onclick="completeMaterialQC('{{ qc.id }}', '{{ qc.material_batch.material.material_name }}')">
+                                                        <i class="fas fa-check"></i> Complete QC
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            {% else %}
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle me-2"></i>No raw materials in testing process.
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- In Progress Tests Tab -->
+                <div class="tab-pane fade" id="in-progress" role="tabpanel">
+                    <div class="card">
+                        <div class="card-header bg-info text-white">
+                            <h5 class="mb-0">
+                                <i class="fas fa-spinner me-2"></i>In Progress Tests
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            {% if in_progress_phases %}
+                                <div class="table-responsive">
+                                    <table class="table table-striped table-hover">
+                                        <thead class="table-dark">
+                                            <tr>
+                                                <th>BMR Number</th>
+                                                <th>Product</th>
+                                                <th>Phase</th>
+                                                <th>Started By</th>
+                                                <th>Started Date</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for phase in in_progress_phases %}
+                                            <tr>
+                                                <td><strong>{{ phase.bmr.bmr_number }}</strong></td>
+                                                <td>{{ phase.bmr.product.product_name }}</td>
+                                                <td>{{ phase.phase.get_phase_name_display }}</td>
+                                                <td>{{ phase.started_by.get_full_name }}</td>
+                                                <td>{{ phase.started_date|date:"M d, H:i" }}</td>
+                                                <td>
+                                                    <div class="btn-group">
+                                                        <button type="button" class="btn btn-sm btn-success" onclick="completeTest('{{ phase.id }}', '{{ phase.bmr.bmr_number }}', 'approve')">
+                                                            <i class="fas fa-check"></i> Pass
+                                                        </button>
+                                                        <button type="button" class="btn btn-sm btn-danger" onclick="completeTest('{{ phase.id }}', '{{ phase.bmr.bmr_number }}', 'reject')">
+                                                            <i class="fas fa-times"></i> Fail
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            {% else %}
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle me-2"></i>No quality control tests in progress.
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Completed Tests Tab -->
+                <div class="tab-pane fade" id="completed" role="tabpanel">
+                    <div class="card">
+                        <div class="card-header bg-success text-white">
+                            <h5 class="mb-0">
+                                <i class="fas fa-check-double me-2"></i>Completed Tests
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <input type="text" class="form-control" id="searchCompletedTests" placeholder="Search by BMR number, product, or result...">
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-striped table-hover" id="completedTestsTable">
+                                    <thead class="table-dark">
+                                        <tr>
+                                            <th>BMR Number</th>
+                                            <th>Product</th>
+                                            <th>Phase</th>
+                                            <th>Completed</th>
+                                            <th>Result</th>
+                                            <th>Completed By</th>
+                                            <th>Details</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for phase in completed_phases %}
+                                        <tr>
+                                            <td><strong>{{ phase.bmr.bmr_number }}</strong></td>
+                                            <td>{{ phase.bmr.product.product_name }}</td>
+                                            <td>{{ phase.phase.get_phase_name_display }}</td>
+                                            <td>{{ phase.completed_date|date:"M d, H:i" }}</td>
+                                            <td>
+                                                {% if phase.status == 'completed' %}
+                                                    <span class="badge bg-success">Passed</span>
+                                                {% elif phase.status == 'rejected' %}
+                                                    <span class="badge bg-danger">Failed</span>
+                                                {% else %}
+                                                    <span class="badge bg-secondary">{{ phase.status }}</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>{{ phase.completed_by.get_full_name }}</td>
+                                            <td>
+                                                <button type="button" class="btn btn-sm btn-info" onclick="viewTestDetails('{{ phase.id }}', '{{ phase.bmr.bmr_number }}')">
+                                                    <i class="fas fa-file-alt"></i> View
+                                                </button>
+                                            </td>
+                                        </tr>
+                                        {% empty %}
+                                        <tr>
+                                            <td colspan="7" class="text-center">No completed tests in the last 30 days</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- QC Reports Tab -->
+                <div class="tab-pane fade" id="reports" role="tabpanel">
+                    <div class="card">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0">
+                                <i class="fas fa-chart-bar me-2"></i>Quality Control Reports
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="card mb-3">
+                                        <div class="card-header bg-light">
+                                            <h6 class="mb-0">Monthly Test Results</h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <canvas id="monthlyResultsChart" height="200"></canvas>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="card mb-3">
+                                        <div class="card-header bg-light">
+                                            <h6 class="mb-0">Test Categories</h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <canvas id="testCategoriesChart" height="200"></canvas>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <h5 class="mt-4 mb-3">Generate QC Reports</h5>
+                            <form class="row g-3">
+                                <div class="col-md-4">
+                                    <label for="reportType" class="form-label">Report Type</label>
+                                    <select class="form-select" id="reportType">
+                                        <option value="monthly">Monthly Summary</option>
+                                        <option value="product">By Product</option>
+                                        <option value="raw_material">Raw Material QC</option>
+                                        <option value="failures">Failure Analysis</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="dateRange" class="form-label">Date Range</label>
+                                    <select class="form-select" id="dateRange">
+                                        <option value="7">Last 7 days</option>
+                                        <option value="30" selected>Last 30 days</option>
+                                        <option value="90">Last 3 months</option>
+                                        <option value="180">Last 6 months</option>
+                                        <option value="365">Last year</option>
+                                        <option value="custom">Custom range</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="exportFormat" class="form-label">Export Format</label>
+                                    <select class="form-select" id="exportFormat">
+                                        <option value="excel">Excel</option>
+                                        <option value="pdf">PDF</option>
+                                        <option value="csv">CSV</option>
+                                    </select>
+                                </div>
+                                <div class="col-12">
+                                    <button type="button" class="btn btn-primary" onclick="generateReport()">
+                                        <i class="fas fa-file-export me-2"></i>Generate Report
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Specifications Tab -->
+                <div class="tab-pane fade" id="specifications" role="tabpanel">
+                    <div class="card">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0">
+                                <i class="fas fa-clipboard-list me-2"></i>Quality Control Specifications
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <input type="text" class="form-control" id="searchSpecifications" placeholder="Search specifications...">
+                            </div>
+                            
+                            <ul class="nav nav-tabs" id="specificationTabs" role="tablist">
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link active" id="raw-material-specs-tab" data-bs-toggle="tab" data-bs-target="#raw-material-specs" type="button" role="tab" aria-controls="raw-material-specs" aria-selected="true">Raw Materials</button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link" id="product-specs-tab" data-bs-toggle="tab" data-bs-target="#product-specs" type="button" role="tab" aria-controls="product-specs" aria-selected="false">Products</button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link" id="phase-specs-tab" data-bs-toggle="tab" data-bs-target="#phase-specs" type="button" role="tab" aria-controls="phase-specs" aria-selected="false">Production Phases</button>
+                                </li>
+                            </ul>
+                            
+                            <div class="tab-content pt-3" id="specificationTabsContent">
+                                <div class="tab-pane fade show active" id="raw-material-specs" role="tabpanel" aria-labelledby="raw-material-specs-tab">
+                                    <div class="table-responsive">
+                                        <table class="table table-sm table-striped table-hover">
+                                            <thead class="table-light">
+                                                <tr>
+                                                    <th>Material Name</th>
+                                                    <th>Test</th>
+                                                    <th>Specification</th>
+                                                    <th>Acceptable Range</th>
+                                                    <th>Units</th>
+                                                    <th>Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for spec in raw_material_specifications %}
+                                                <tr>
+                                                    <td>{{ spec.material.material_name }}</td>
+                                                    <td>{{ spec.test_name }}</td>
+                                                    <td>{{ spec.specification }}</td>
+                                                    <td>{{ spec.min_value }} - {{ spec.max_value }}</td>
+                                                    <td>{{ spec.units }}</td>
+                                                    <td>
+                                                        <button type="button" class="btn btn-sm btn-outline-primary">
+                                                            <i class="fas fa-edit"></i>
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                                {% empty %}
+                                                <tr>
+                                                    <td colspan="6" class="text-center">No raw material specifications found</td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                                <div class="tab-pane fade" id="product-specs" role="tabpanel" aria-labelledby="product-specs-tab">
+                                    <!-- Product specifications table similar to raw material specs -->
+                                    <p class="text-muted">Product specification data would appear here...</p>
+                                </div>
+                                <div class="tab-pane fade" id="phase-specs" role="tabpanel" aria-labelledby="phase-specs-tab">
+                                    <!-- Phase specifications table -->
+                                    <p class="text-muted">Phase-specific QC criteria would appear here...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Recent QC Activity Summary -->
+            <div class="card mt-4">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-history me-2"></i>Recent QC Activity</h5>
+                    <span class="badge bg-light text-primary">Showing 5 rows</span>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive p-3">
+                        <table id="recentQCActivityTable" class="table table-striped table-bordered table-hover mb-0 display responsive nowrap" width="100%">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Material/Batch</th>
+                                    <th>Test Type</th>
+                                    <th>Result</th>
+                                    <th>Tester</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for test in raw_material_qc_tests %}
+                                <tr>
+                                    <td>{{ test.completed_date|default:test.test_date|date:"Y-m-d H:i" }}</td>
+                                    <td>
+                                        <strong>{{ test.material_batch.material.material_name }}</strong><br>
+                                        <small class="text-muted">{{ test.material_batch.batch_number }}</small>
+                                    </td>
+                                    <td>Raw Material QC</td>
+                                    <td>
+                                        {% if test.final_result == 'pass' %}
+                                        <span class="badge bg-success">Passed</span>
+                                        {% elif test.final_result == 'fail' %}
+                                        <span class="badge bg-danger">Failed</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">Pending</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ test.tested_by.get_full_name|default:"Not completed" }}</td>
+                                    <td>
+                                        {% if test.status == 'approved' %}
+                                        <span class="badge bg-success">Approved</span>
+                                        {% elif test.status == 'rejected' %}
+                                        <span class="badge bg-danger">Rejected</span>
+                                        {% elif test.status == 'in_progress' %}
+                                        <span class="badge bg-info">In Progress</span>
+                                        {% else %}
+                                        <span class="badge bg-warning">Pending</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <!-- Will be replaced by DataTables empty message -->
+                                {% endfor %}
+                                
+                                {% for phase in my_phases %}
+                                {% if phase.status == 'completed' or phase.status == 'in_progress' %}
+                                <tr>
+                                    <td>{{ phase.started_date|date:"Y-m-d H:i" }}</td>
+                                    <td>
+                                        <strong>{{ phase.bmr.product.product_name }}</strong><br>
+                                        <small class="text-muted">{{ phase.bmr.batch_number }}</small>
+                                    </td>
+                                    <td>{{ phase.phase.get_phase_name_display }}</td>
+                                    <td>
+                                        {% if phase.status == 'completed' %}
+                                        <span class="badge bg-success">Passed</span>
+                                        {% elif phase.status == 'failed' %}
+                                        <span class="badge bg-danger">Failed</span>
+                                        {% else %}
+                                        <span class="badge bg-info">In Progress</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ phase.started_by.get_full_name }}</td>
+                                    <td>
+                                        {% if phase.status == 'completed' %}
+                                        <span class="badge bg-success">Completed</span>
+                                        {% elif phase.status == 'in_progress' %}
+                                        <span class="badge bg-info">In Progress</span>
+                                        {% elif phase.status == 'failed' %}
+                                        <span class="badge bg-danger">Failed</span>
+                                        {% else %}
+                                        <span class="badge bg-warning">Pending</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endif %}
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
-
-<!-- Test Action Modals -->
-<div class="modal fade" id="testModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="testModalTitle">QC Test Action</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <form id="testForm" method="post">
-                {% csrf_token %}
-                <div class="modal-body">
-                    <div id="testModalBody">
-                        <!-- Dynamic content -->
-                    </div>
-                    <div class="form-group mt-3">
-                        <label for="test_comments">Test Comments:</label>
-                        <textarea class="form-control" id="test_comments" name="test_results" rows="3" required></textarea>
-                        <small class="form-text text-muted">Document test parameters and observations.</small>
-                    </div>
-                    <input type="hidden" id="test_phase_id" name="phase_id">
-                    <input type="hidden" id="test_action" name="action">
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary" id="testSubmitBtn">Confirm</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
+<!-- CSRF Token for AJAX requests -->
+<form id="csrf-form">{% csrf_token %}</form>
+<!-- Include QC Testing Modal -->
+{% include 'dashboards/qc_test_modal.html' %}
+<!-- Consolidated JavaScript -->
 <script>
-function startTesting(phaseId, phaseName, bmrNumber) {
-    document.getElementById('testModalTitle').textContent = 'Start Quality Control Testing';
-    document.getElementById('testModalBody').innerHTML = `
-        <p>Start quality control testing for BMR <strong>${bmrNumber}</strong>?</p>
-        <p class="text-info"><small>This will mark the batch as "In Testing" status.</small></p>
-    `;
-    document.getElementById('test_phase_id').value = phaseId;
-    document.getElementById('test_action').value = 'start';
-    document.getElementById('testSubmitBtn').textContent = 'Start Testing';
-    document.getElementById('testSubmitBtn').className = 'btn btn-info';
+$(document).ready(function() {
+    // Initialize DataTables for Recent QC Activity
+    $('#recentQCActivityTable').DataTable({
+        pageLength: 5,  // Show exactly 5 rows per page
+        lengthMenu: [5, 10, 25, 50],
+        order: [[0, 'desc']],  // Sort by date column descending
+        responsive: true,
+        scrollY: '350px',      // Fixed height scrolling
+        scrollCollapse: true,  // Enable scroll collapse
+        paging: true,          // Enable pagination
+        pagingType: 'simple_numbers', // Simple paging with numbers
+        autoWidth: false,      // Better column width handling
+        stripeClasses: ['odd-row', 'even-row'], // Custom striping classes
+        dom: '<"row mb-2"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>>' +
+             '<"row"<"col-sm-12"tr>>' +
+             '<"row mt-2"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>',
+        language: {
+            emptyTable: "No recent QC activities found",
+            info: "Showing _START_ to _END_ of _TOTAL_ entries",
+            lengthMenu: "Show _MENU_ entries",
+            paginate: {
+                first: '<i class="fas fa-angle-double-left"></i>',
+                last: '<i class="fas fa-angle-double-right"></i>',
+                next: '<i class="fas fa-angle-right"></i>',
+                previous: '<i class="fas fa-angle-left"></i>'
+            },
+            search: "Find activity:"
+        },
+        initComplete: function() {
+            // Force height constraint and ensure only 5 rows show by default
+            $('#recentQCActivityTable_wrapper').css('max-height', '400px');
+            $('#recentQCActivityTable_wrapper').css('overflow-y', 'auto');
+            
+            // Force the page length dropdown to select 5
+            $('#recentQCActivityTable_length select').val('5').trigger('change');
+        }
+    });
     
-    new bootstrap.Modal(document.getElementById('testModal')).show();
-}
-
-function passTest(phaseId, phaseName, bmrNumber) {
-    document.getElementById('testModalTitle').textContent = 'Pass Quality Control Test';
-    document.getElementById('testModalBody').innerHTML = `
-        <p>Mark quality control test as <strong class="text-success">PASSED</strong> for BMR ${bmrNumber}?</p>
-        <p class="text-success"><small>This will allow the batch to proceed to the next phase.</small></p>
-    `;
-    document.getElementById('test_phase_id').value = phaseId;
-    document.getElementById('test_action').value = 'pass';
-    document.getElementById('testSubmitBtn').textContent = 'Pass Test';
-    document.getElementById('testSubmitBtn').className = 'btn btn-success';
-    
-    new bootstrap.Modal(document.getElementById('testModal')).show();
-}
-
-function failTest(phaseId, phaseName, bmrNumber) {
-    document.getElementById('testModalTitle').textContent = 'Fail Quality Control Test';
-    document.getElementById('testModalBody').innerHTML = `
-        <p>Mark quality control test as <strong class="text-danger">FAILED</strong> for BMR ${bmrNumber}?</p>
-        <p class="text-danger"><small>This will send the batch back for rework or disposal.</small></p>
-    `;
-    document.getElementById('test_phase_id').value = phaseId;
-    document.getElementById('test_action').value = 'fail';
-    document.getElementById('testSubmitBtn').textContent = 'Fail Test';
-    document.getElementById('testSubmitBtn').className = 'btn btn-danger';
-    document.getElementById('test_comments').required = true;
-    
-    new bootstrap.Modal(document.getElementById('testModal')).show();
-}
-
-// Handle form submission
-document.getElementById('testForm').addEventListener('submit', function(e) {
-    const formData = new FormData(this);
-    const action = formData.get('action');
-    const comments = formData.get('comments');
-    
-    if (action === 'fail' && !comments.trim()) {
-        alert('Comments are required when failing a test');
-        e.preventDefault();
-        return false;
+    // Initialize any charts
+    if (document.getElementById('monthlyResultsChart')) {
+        new Chart(document.getElementById('monthlyResultsChart'), {
+            type: 'line',
+            data: {
+                labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+                datasets: [{
+                    label: 'Passed',
+                    data: [65, 59, 80, 81, 56, 55],
+                    backgroundColor: 'rgba(40, 167, 69, 0.2)',
+                    borderColor: 'rgba(40, 167, 69, 1)',
+                    borderWidth: 2
+                }, {
+                    label: 'Failed',
+                    data: [12, 19, 3, 5, 2, 3],
+                    backgroundColor: 'rgba(220, 53, 69, 0.2)',
+                    borderColor: 'rgba(220, 53, 69, 1)',
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false
+            }
+        });
     }
     
-    // Allow normal form submission to POST to the same URL
-    return true;
+    if (document.getElementById('testCategoriesChart')) {
+        new Chart(document.getElementById('testCategoriesChart'), {
+            type: 'doughnut',
+            data: {
+                labels: ['Raw Materials', 'In-Process', 'Finished Goods'],
+                datasets: [{
+                    data: [45, 30, 25],
+                    backgroundColor: [
+                        'rgba(0, 123, 255, 0.8)',
+                        'rgba(40, 167, 69, 0.8)',
+                        'rgba(255, 193, 7, 0.8)'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false
+            }
+        });
+    }
+    
+    // Initialize the tabs
+    var triggerTabList = [].slice.call(document.querySelectorAll('#qc-sidebar-tabs a'))
+    triggerTabList.forEach(function(triggerEl) {
+        var tabTrigger = new bootstrap.Tab(triggerEl)
+        triggerEl.addEventListener('click', function(event) {
+            event.preventDefault()
+            tabTrigger.show()
+        })
+    })
+    
+    // Search functionality for completed tests
+    document.getElementById('searchCompletedTests')?.addEventListener('keyup', function() {
+        const searchValue = this.value.toLowerCase();
+        const tableRows = document.querySelectorAll('#completedTestsTable tbody tr');
+        
+        tableRows.forEach(function(row) {
+            const bmrNumber = row.querySelector('td:nth-child(1)').textContent.toLowerCase();
+            const productName = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
+            const result = row.querySelector('td:nth-child(5)').textContent.toLowerCase();
+            
+            if (bmrNumber.includes(searchValue) || productName.includes(searchValue) || result.includes(searchValue)) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    });
+    
+    // Search functionality for specifications
+    document.getElementById('searchSpecifications')?.addEventListener('keyup', function() {
+        const searchValue = this.value.toLowerCase();
+        const tableRows = document.querySelectorAll('#specificationTabsContent tbody tr');
+        
+        tableRows.forEach(function(row) {
+            const materialName = row.querySelector('td:nth-child(1)')?.textContent.toLowerCase();
+            const testName = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase();
+            
+            if ((materialName && materialName.includes(searchValue)) || 
+                (testName && testName.includes(searchValue))) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    });
+    
+    // Add event listener to the save button
+    $(document).on('click', '#saveQcResultsBtn', function(e) {
+        e.preventDefault();
+        console.log("=== SAVE BUTTON CLICKED ===");
+        
+        // Get form values - standard form serialization instead of FormData
+        var formData = $('#qcTestForm').serializeArray();
+        
+        // Convert to regular object
+        var formObject = {};
+        $(formData).each(function(index, obj){
+            formObject[obj.name] = obj.value;
+        });
+        
+        // Important: Map test_notes to comments field that backend expects
+        formObject.comments = formObject.test_notes;
+        
+        // Log what we're submitting
+        console.log("=== FORM DATA ===", formObject);
+        
+        // Validation
+        if (!formObject.appearance_result || !formObject.identification_result || !formObject.final_result) {
+            alert('Please fill in all required fields: Appearance, Identification, and Final Result');
+            return;
+        }
+        
+        // Add CSRF token explicitly
+        formObject.csrfmiddlewaretoken = $('input[name=csrfmiddlewaretoken]').val();
+        
+        // Show loading
+        $(this).prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-2"></span>Saving...');
+        
+        // Send AJAX request with regular data
+        $.ajax({
+            url: '{% url "raw_materials:save_qc_test" %}',
+            method: 'POST',
+            data: formObject,
+            dataType: 'json',
+            success: function(response) {
+                console.log("=== SUCCESS RESPONSE ===", response);
+                if (response.success) {
+                    alert('QC test results saved successfully!');
+                    $('#qcTestingModal').modal('hide');
+                    location.reload();
+                } else {
+                    console.error("Server returned error:", response);
+                    alert('Error: ' + (response.error || 'Unknown error saving QC test'));
+                    $('#saveQcResultsBtn').prop('disabled', false).html('Save Test Results');
+                }
+            },
+            error: function(xhr, status, error) {
+                console.log("=== ERROR RESPONSE STATUS ===", status);
+                console.log("=== ERROR RESPONSE TEXT ===", xhr.responseText);
+                console.log("=== ERROR OBJECT ===", error);
+                
+                try {
+                    const errorData = JSON.parse(xhr.responseText);
+                    alert('Failed to save: ' + (errorData.error || error));
+                } catch(e) {
+                    alert('Failed to save QC test. Status: ' + status + ', Error: ' + error + '. Check the browser console for details.');
+                }
+                $('#saveQcResultsBtn').prop('disabled', false).html('Save Test Results');
+            },
+            // Add complete callback to ensure we always log the request
+            complete: function(xhr, status) {
+                console.log("=== AJAX REQUEST COMPLETED ===");
+                console.log("Status:", status);
+                console.log("URL:", '{% url "raw_materials:save_qc_test" %}');
+            }
+        });
+    });
+    
+    // NOTE: Save button functionality moved to qc_save_handler.js
+    /* Event handler removed - see qc_save_handler.js
+    $(document).on('click', '#qcSaveButton', function(e) {
+        console.log("=== QC Save Button clicked ===");
+        e.preventDefault();
+        
+        // Get form values - standard form serialization
+        var formData = $('#qcTestForm').serializeArray();
+        
+        // Convert to regular object
+        var formObject = {};
+        $(formData).each(function(index, obj){
+            formObject[obj.name] = obj.value;
+        });
+        
+        // Important: Map test_notes to comments field that backend expects
+        if (formObject.test_notes) {
+            formObject.comments = formObject.test_notes;
+        }
+        
+        console.log("Form data to be submitted:", formObject);
+        
+        // Disable the save button and show loading state
+        $('#qcSaveButton').prop('disabled', true).html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Saving...');
+        
+        // Get CSRF token
+        const csrfToken = $('input[name=csrfmiddlewaretoken]').val();
+        
+        // Send AJAX request
+        $.ajax({
+            url: '/raw-materials/api/save-qc-test/',
+            method: 'POST',
+            headers: {
+                'X-Content-Type-Options': 'nosniff',
+                'Cache-Control': 'no-store, max-age=0'
+            },
+            data: formObject,
+            success: function(response) {
+                console.log("Save QC Test Response:", response);
+                if (response.success) {
+                    // Show success message
+                    $('#qcTestAlert')
+                        .removeClass('d-none alert-danger')
+                        .addClass('alert-success')
+                        .html('<i class="fas fa-check-circle me-2"></i> Test results saved successfully!');
+                        
+                    // Re-enable save button
+                    $('#qcSaveButton').prop('disabled', false).html('<i class="fas fa-save me-2"></i>Save Test Results');
+                    
+                    // Reload the page after a short delay to show updated data
+                    setTimeout(function() {
+                        location.reload();
+                    }, 1500);
+                } else {
+                    // Show error message
+                    $('#qcTestAlert')
+                        .removeClass('d-none alert-success')
+                        .addClass('alert-danger')
+                        .html('<i class="fas fa-exclamation-triangle me-2"></i> ' + (response.error || 'Unknown error occurred'));
+                        
+                    // Re-enable save button
+                    $('#qcSaveButton').prop('disabled', false).html('<i class="fas fa-save me-2"></i>Save Test Results');
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error("AJAX Error:", xhr.responseText);
+                
+                // Show error message
+                $('#qcTestAlert')
+                    .removeClass('d-none alert-success')
+                    .addClass('alert-danger')
+                    .html('<i class="fas fa-exclamation-triangle me-2"></i> Error saving test results. Please try again.');
+                    
+                // Re-enable save button
+                $('#qcSaveButton').prop('disabled', false).html('<i class="fas fa-save me-2"></i>Save Test Results');
+            }
+        });
+    });
+    */
 });
+// Helper function to return to dashboard
+function returnToDashboard() {
+    // Hide all direct sections
+    $("#directPendingTests, #directInProgressTests").hide();
+    
+    // Show main content again
+    $("#mainContent").show();
+    $(".statistics-cards").show();
+    
+    // Scroll to top
+    $('html, body').animate({
+        scrollTop: $(".statistics-cards").offset().top - 100
+    }, 200);
+}
+// Helper function to show tab content
+function showTab(tabId) {
+    console.log(`Showing tab: ${tabId}`);
+    
+    // Hide direct sections
+    $("#directPendingTests, #directInProgressTests").hide();
+    
+    // Show main content
+    $("#mainContent").show();
+    
+    // Hide all tab panes
+    $('.tab-pane').removeClass('show active');
+    
+    // Deactivate all tabs
+    $('.nav-tabs .nav-link, .list-group-item').removeClass('active');
+    
+    // Show the selected tab
+    $(tabId).addClass('show active');
+    $(`[href="${tabId}"]`).addClass('active');
+    
+    // Force display and scroll to content
+    $(tabId).css('display', 'block');
+    $('html, body').animate({
+        scrollTop: $(tabId).offset().top - 100
+    }, 200);
+}
+// Test QC Functions
+function startTest(phaseId, bmrNumber) {
+    const notes = prompt(`Enter notes for starting QC test for BMR ${bmrNumber}:`);
+    if (notes !== null) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '{% url "dashboards:qc_dashboard" %}';
+        
+        // Add CSRF token
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+        if (csrfToken) {
+            form.appendChild(csrfToken.cloneNode());
+        }
+        
+        // Add form data
+        const fields = {
+            'phase_id': phaseId,
+            'action': 'start',
+            'test_results': notes
+        };
+        
+        for (const [key, value] of Object.entries(fields)) {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = key;
+            input.value = value;
+            form.appendChild(input);
+        }
+        
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+function completeTest(phaseId, bmrNumber, result) {
+    const action = result === 'approve' ? 'pass' : 'fail';
+    const actionText = result === 'approve' ? 'approving' : 'rejecting';
+    const notes = prompt(`Enter notes for ${actionText} QC test for BMR ${bmrNumber}:`);
+    
+    if (notes !== null) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '{% url "dashboards:qc_dashboard" %}';
+        
+        // Add CSRF token
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+        if (csrfToken) {
+            form.appendChild(csrfToken.cloneNode());
+        }
+        
+        // Add form data
+        const fields = {
+            'phase_id': phaseId,
+            'action': action,
+            'test_results': notes
+        };
+        
+        for (const [key, value] of Object.entries(fields)) {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = key;
+            input.value = value;
+            form.appendChild(input);
+        }
+        
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+// Additional functions
+function viewTestDetails(phaseId, bmrNumber) {
+    window.location.href = `{% url 'dashboards:qc_test_detail' test_id=0 %}`.replace('0', phaseId);
+}
+function generateReport() {
+    // Redirect to the QC test reports page
+    window.location.href = "{% url 'reports:qc_test_report' %}";
+}
+// Test function
+function testFunction() {
+    console.log("JavaScript is working");
+    alert("Test function called successfully");
+}
+// Raw Material QC Functions
+function startMaterialQC(batchId, materialName) {
+    console.log("======= startMaterialQC called with:", batchId, materialName, "=======");
+    alert("Starting QC test for " + materialName);
+    
+    // First, check if the QC modal exists
+    const qcModal = document.getElementById('qcTestingModal');
+    if (!qcModal) {
+        console.error("ERROR: QC Testing Modal not found in the DOM!");
+        alert("Error: QC Testing Modal not found. Please refresh the page and try again.");
+        return;
+    }
+    
+    console.log("Modal found in DOM:", qcModal);
+    
+    if (confirm('Start QC testing for ' + materialName + '?')) {
+        console.log("User confirmed starting QC test");
+        
+        // Show spinner while loading
+        $('#qcTestingContent').html('\
+            <div class="text-center p-4">\
+                <div class="spinner-border text-primary" role="status">\
+                    <span class="visually-hidden">Loading...</span>\
+                </div>\
+                <p class="mt-2">Loading test details...</p>\
+            </div>\
+        ');
+        
+        // Step 1: Initiate the QC test
+        const csrfToken = $('input[name=csrfmiddlewaretoken]').val();
+        console.log("CSRF Token:", csrfToken);
+        
+        // Show the modal immediately so user gets feedback
+        const bootstrapModal = new bootstrap.Modal(qcModal);
+        bootstrapModal.show();
+        console.log("Modal shown with loading spinner");
+        
+        $.ajax({
+            url: '/raw-materials/api/start-qc-test/',
+            method: 'POST',
+            data: {
+                'batch_id': batchId,
+                'csrfmiddlewaretoken': csrfToken
+            },
+            success: function(startResponse) {
+                console.log("Start QC Test Response:", startResponse);
+                if (startResponse.success) {
+                    // Step 2: Load batch details
+                    $.ajax({
+                        url: '/raw-materials/api/batch-detail/',
+                        method: 'GET',
+                        data: {
+                            'batch_id': batchId
+                        },
+                        success: function(data) {
+                            console.log("Batch Detail Response:", data);
+                            if (data.success) {
+                                const batch = data.batch;
+                                console.log("Batch details retrieved successfully:", batch);
+                                
+                                // Show the QC test form
+                                $('#qcTestForm').removeClass('d-none');
+                                console.log("QC test form revealed");
+                                
+                                // Fill in batch details for our new form
+                                $('#material_batch_id').val(batch.id);
+                                $('#test_id').val(startResponse.test_id || '');
+                                $('#material_name').val(batch.material_name);
+                                $('#batch_number').val(batch.batch_number);
+                                $('#supplier').val(batch.supplier || 'Not specified');
+                                $('#quantity').val(batch.quantity + ' ' + (batch.unit_of_measure || 'units'));
+                                
+                                console.log("Form populated with batch details");
+                            } else {
+                                alert('Failed to load batch details: ' + (data.error || 'Unknown error'));
+                            }
+                        },
+                        error: function() {
+                            alert('Failed to load batch details. Please try again.');
+                        }
+                    });
+                } else {
+                    alert('Error starting QC test: ' + (startResponse.error || 'Unknown error'));
+                }
+            },
+            error: function() {
+                alert('Failed to start QC test. Please try again.');
+            }
+        });
+    }
+}
+function completeMaterialQC(qcId, materialName) {
+    console.log("Loading QC test details for ID:", qcId);
+    
+    // Show the modal with spinner
+    const qcModal = new bootstrap.Modal(document.getElementById('qcTestingModal'));
+    qcModal.show();
+    
+    // Show spinner while loading
+    $('#qcTestingContent').html('\
+        <div class="text-center p-4">\
+            <div class="spinner-border text-primary" role="status">\
+                <span class="visually-hidden">Loading...</span>\
+            </div>\
+            <p class="mt-2">Loading test details...</p>\
+        </div>\
+    ');
+    
+    // Get CSRF token
+    const csrfToken = $('input[name=csrfmiddlewaretoken]').val();
+    
+    // Load test details first
+    $.ajax({
+        url: '/raw-materials/api/test-detail/',
+        method: 'GET',
+        data: {
+            'test_id': qcId,
+            'csrfmiddlewaretoken': csrfToken
+        },
+        success: function(data) {
+            console.log("Test details response:", data);
+            
+            if (data.success && data.test) {
+                const test = data.test;
+                
+                // Now get batch details
+                $.ajax({
+                    url: '/raw-materials/api/batch-detail/',
+                    method: 'GET',
+                    data: {
+                        'batch_id': test.material_batch_id,
+                        'csrfmiddlewaretoken': csrfToken
+                    },
+                    success: function(batchData) {
+                        console.log("Batch details response:", batchData);
+                        
+                        if (batchData.success && batchData.batch) {
+                            const batch = batchData.batch;
+                            
+                            // Show the QC test form
+                            $('#qcTestForm').removeClass('d-none');
+                            
+                            // Fill in all details
+                            $('#test_id').val(test.id);
+                            $('#material_batch_id').val(test.material_batch_id);
+                            $('#material_name').val(batch.material_name);
+                            $('#batch_number').val(batch.batch_number);
+                            $('#quantity').val(batch.quantity + ' ' + (batch.unit_of_measure || 'units'));
+                            $('#supplier').val(batch.supplier || 'Not specified');
+                            
+                            // Fill in existing test results if any
+                            $('#appearance_result').val(test.appearance_result || '');
+                            $('#identification_result').val(test.identification_result || '');
+                            $('#assay_result').val(test.assay_result || '');
+                            $('#purity_result').val(test.purity_result || '');
+                            $('#final_result').val(test.final_result || '');
+                            $('#test_status').val(test.status || 'in_progress');
+                            $('#test_notes').val(test.comments || '');
+                            
+                            console.log("Form populated with test and batch data");
+                        } else {
+                            alert('Error loading batch details: ' + (batchData.error || 'Unknown error'));
+                        }
+                    },
+                    error: function(xhr, status, err) {
+                        console.error("Batch details error:", xhr.responseText);
+                        alert('Failed to load batch details. Please try again.');
+                    }
+                });
+            } else {
+                alert('Error loading test details: ' + (data.error || 'Unknown error'));
+            }
+        },
+        error: function(xhr, status, err) {
+            console.error("Test details error:", xhr.responseText);
+            alert('Failed to load test details. Please try again.');
+        }
+    });
+}
+
+// Define the global saveQcTest function that's referenced in qc_test_modal.html
+window.saveQcTest = function() {
+    console.log("=== saveQcTest global function called ===");
+    
+    // Get form values - standard form serialization
+    var formData = $('#qcTestForm').serializeArray();
+    
+    // Convert to regular object
+    var formObject = {};
+    $(formData).each(function(index, obj){
+        formObject[obj.name] = obj.value;
+    });
+    
+    // Important: Map test_notes to comments field that backend expects
+    formObject.comments = formObject.test_notes;
+    
+    console.log("Form data to be submitted:", formObject);
+    
+    // Disable the save button and show loading state
+    $('#qcSaveButton').prop('disabled', true).html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Saving...');
+    
+    // Get CSRF token
+    const csrfToken = $('input[name=csrfmiddlewaretoken]').val();
+    
+    // Send AJAX request
+    $.ajax({
+        url: '/raw-materials/api/save-qc-test/',
+        method: 'POST',
+        headers: {
+            'X-Content-Type-Options': 'nosniff', // Add security header
+            'Cache-Control': 'no-store, max-age=0' // Preferred over Expires header
+        },
+        data: formObject,
+        success: function(response) {
+            console.log("Save QC Test Response:", response);
+            if (response.success) {
+                // Show success message
+                $('#qcTestAlert')
+                    .removeClass('d-none alert-danger')
+                    .addClass('alert-success')
+                    .html('<i class="fas fa-check-circle me-2"></i> Test results saved successfully!');
+                    
+                // Re-enable save button
+                $('#qcSaveButton').prop('disabled', false).html('<i class="fas fa-save me-2"></i>Save Test Results');
+                
+                // Reload the page after a short delay to show updated data
+                setTimeout(function() {
+                    location.reload();
+                }, 1500);
+            } else {
+                // Show error message
+                $('#qcTestAlert')
+                    .removeClass('d-none alert-success')
+                    .addClass('alert-danger')
+                    .html('<i class="fas fa-exclamation-triangle me-2"></i> ' + (response.error || 'Unknown error occurred'));
+                    
+                // Re-enable save button
+                $('#qcSaveButton').prop('disabled', false).html('<i class="fas fa-save me-2"></i>Save Test Results');
+            }
+        },
+        error: function(xhr, status, error) {
+            console.error("AJAX Error:", xhr.responseText);
+            
+            // Show error message
+            $('#qcTestAlert')
+                .removeClass('d-none alert-success')
+                .addClass('alert-danger')
+                .html('<i class="fas fa-exclamation-triangle me-2"></i> Error saving test results. Please try again.');
+                
+            // Re-enable save button
+            $('#qcSaveButton').prop('disabled', false).html('<i class="fas fa-save me-2"></i>Save Test Results');
+        }
+    });
+};
+</script>
+<!-- Raw Material QC Testing Modal -->
+<div class="modal fade" id="qcTestingModal" tabindex="-1" aria-labelledby="qcTestingModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="qcTestingModalLabel">
+                    <i class="fas fa-vial me-2"></i>Raw Material QC Testing
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="qcTestingContent">
+                <!-- Content will be loaded dynamically -->
+                <div class="text-center p-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Loading QC test...</p>
+                </div>
+                
+                <!-- QC Test Form (initially hidden) -->
+                <form id="qcTestForm" class="d-none" method="post" action="{% url 'raw_materials:save_qc_test' %}" novalidate>
+                    {% csrf_token %}
+                    <input type="hidden" name="test_id" id="test_id">
+                    <input type="hidden" name="batch_id" id="material_batch_id">
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Material</label>
+                            <input type="text" id="material_name" class="form-control" readonly>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Batch Number</label>
+                            <input type="text" id="batch_number" class="form-control" readonly>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Supplier</label>
+                            <input type="text" id="supplier" class="form-control" readonly>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Quantity</label>
+                            <input type="text" id="quantity" class="form-control" readonly>
+                        </div>
+                    </div>
+                    
+                    <h5 class="mt-4 mb-3 border-bottom pb-2">Test Results</h5>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="appearance_result" class="form-label">Appearance</label>
+                            <select id="appearance_result" name="appearance_result" class="form-select" required aria-required="true">
+                                <option value="">Select Result</option>
+                                <option value="pass">Pass</option>
+                                <option value="fail">Fail</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="identification_result" class="form-label">Identification</label>
+                            <select id="identification_result" name="identification_result" class="form-select" required aria-required="true">
+                                <option value="">Select Result</option>
+                                <option value="pass">Pass</option>
+                                <option value="fail">Fail</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="assay_result" class="form-label">Assay</label>
+                            <select id="assay_result" name="assay_result" class="form-select">
+                                <option value="">Select Result</option>
+                                <option value="pass">Pass</option>
+                                <option value="fail">Fail</option>
+                                <option value="n/a">Not Applicable</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="purity_result" class="form-label">Purity</label>
+                            <select id="purity_result" name="purity_result" class="form-select">
+                                <option value="">Select Result</option>
+                                <option value="pass">Pass</option>
+                                <option value="fail">Fail</option>
+                                <option value="n/a">Not Applicable</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="final_result" class="form-label">Final Result</label>
+                            <select id="final_result" name="final_result" class="form-select" required>
+                                <option value="">Select Result</option>
+                                <option value="pass">Pass</option>
+                                <option value="fail">Fail</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="test_status" class="form-label">Status</label>
+                            <select id="test_status" name="status" class="form-select" required>
+                                <option value="in_progress">In Progress</option>
+                                <option value="approved">Approved</option>
+                                <option value="rejected">Rejected</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="test_notes" class="form-label">Test Notes</label>
+                        <textarea id="test_notes" name="test_notes" class="form-control" rows="3"></textarea>
+                    </div>
+                    
+                    <div class="text-end">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-primary" id="saveQcResultsBtn">Save Test Results</button>
+                        <button type="submit" class="btn btn-success ms-2" id="directSubmitBtn">Direct Submit</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Script to handle URL parameter for opening QC test modal -->
+<script>
+    // Function to get URL parameters
+    function getUrlParameter(name) {
+        name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
+        var regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
+        var results = regex.exec(location.search);
+        return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
+    }
+    
+    // Check if we need to open a QC test modal on page load
+    $(document).ready(function() {
+        const batchId = getUrlParameter('open_qc_test');
+        if (batchId) {
+            console.log("Auto-opening QC test for batch ID:", batchId);
+            
+            // Find the material name from the DOM (or default if not found)
+            let materialName = "Selected Material";
+            
+            // Try to find material name in the page
+            $('tr[data-batch-id="' + batchId + '"]').each(function() {
+                materialName = $(this).find('.material-name').text() || materialName;
+            });
+            
+            // Delay slightly to ensure DOM is ready
+            setTimeout(function() {
+                startMaterialQC(batchId, materialName);
+            }, 300);
+        }
+    });
 </script>
 {% endblock %}

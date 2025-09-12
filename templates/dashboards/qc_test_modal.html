@@ -1,0 +1,195 @@
+{% load static %}
+<!-- QC Testing Modal -->
+<div class="modal fade" id="qcTestingModal" tabindex="-1" aria-labelledby="qcTestingModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title" id="qcTestingModalLabel">
+          <i class="fas fa-flask me-2"></i>Material Quality Control Testing
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="qcTestingContent">
+          <div class="text-center p-4">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2">Loading test details...</p>
+          </div>
+        </div>
+        
+        <!-- QC Test Form Template -->
+        <form id="qcTestForm" class="d-none" method="post" action="/raw-materials/api/save-qc-test/">
+          {% csrf_token %}
+          <input type="hidden" id="material_batch_id" name="batch_id" value="">
+          <input type="hidden" id="test_id" name="test_id" value="">
+          
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <div class="card h-100">
+                <div class="card-header bg-light">
+                  <h6 class="mb-0">Material Information</h6>
+                </div>
+                <div class="card-body">
+                  <div class="mb-2">
+                    <label class="form-label fw-bold">Material:</label>
+                    <div id="qcMaterialName" class="form-text-display"></div>
+                  </div>
+                  <div class="mb-2">
+                    <label class="form-label fw-bold">Batch Number:</label>
+                    <div id="qcBatchNumber" class="form-text-display"></div>
+                  </div>
+                  <div class="mb-2">
+                    <label class="form-label fw-bold">Quantity:</label>
+                    <div id="qcQuantity" class="form-text-display"></div>
+                  </div>
+                  <div class="mb-2">
+                    <label class="form-label fw-bold">Supplier:</label>
+                    <div id="qcSupplier" class="form-text-display"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="card h-100">
+                <div class="card-header bg-light">
+                  <h6 class="mb-0">Testing Information</h6>
+                </div>
+                <div class="card-body">
+                  <div class="mb-2">
+                    <label class="form-label fw-bold">Started By:</label>
+                    <div id="qcStartedBy" class="form-text-display"></div>
+                  </div>
+                  <div class="mb-2">
+                    <label class="form-label fw-bold">Test Date:</label>
+                    <div id="qcTestDate" class="form-text-display"></div>
+                  </div>
+                  <div class="mb-2">
+                    <label class="form-label fw-bold">Status:</label>
+                    <div id="qcStatus" class="form-text-display">
+                      <span class="badge bg-warning">In Testing</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Test Parameters -->
+          <div class="card mb-3">
+            <div class="card-header bg-primary text-white">
+              <h6 class="mb-0"><i class="fas fa-tasks me-2"></i>Test Parameters</h6>
+            </div>
+            <div class="card-body">
+              <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i> Complete all required fields marked with <span class="text-danger">*</span>
+              </div>
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label for="appearanceResult" class="form-label fw-bold">Appearance <span class="text-danger">*</span></label>
+                  <select id="appearanceResult" name="appearance_result" class="form-select" required aria-required="true">
+                    <option value="">Select Result</option>
+                    <option value="pass">Pass</option>
+                    <option value="fail">Fail</option>
+                  </select>
+                  <small class="text-muted">Visual inspection of the material</small>
+                </div>
+                <div class="col-md-6">
+                  <label for="identificationResult" class="form-label fw-bold">Identification <span class="text-danger">*</span></label>
+                  <select id="identificationResult" name="identification_result" class="form-select" required aria-required="true">
+                    <option value="">Select Result</option>
+                    <option value="pass">Pass</option>
+                    <option value="fail">Fail</option>
+                  </select>
+                  <small class="text-muted">Confirms material identity</small>
+                </div>
+                <div class="col-md-6">
+                  <label for="assayResult" class="form-label fw-bold">Assay</label>
+                  <select id="assayResult" name="assay_result" class="form-select">
+                    <option value="">Not Applicable</option>
+                    <option value="pass">Pass</option>
+                    <option value="fail">Fail</option>
+                  </select>
+                  <small class="text-muted">Concentration/content testing</small>
+                </div>
+                <div class="col-md-6">
+                  <label for="purityResult" class="form-label fw-bold">Purity</label>
+                  <select id="purityResult" name="purity_result" class="form-select">
+                    <option value="">Not Applicable</option>
+                    <option value="pass">Pass</option>
+                    <option value="fail">Fail</option>
+                  </select>
+                  <small class="text-muted">Tests for impurities/contaminants</small>
+                </div>
+                <div class="col-md-6">
+                  <label for="phValue" class="form-label fw-bold">pH Value</label>
+                  <input type="number" id="phValue" name="ph_value" class="form-control" step="0.1" min="0" max="14" placeholder="Enter pH value (0-14)">
+                  <small class="text-muted">Acidity/alkalinity measurement</small>
+                </div>
+                <div class="col-md-6">
+                  <label for="lossOnDrying" class="form-label fw-bold">Loss on Drying (%)</label>
+                  <input type="number" id="lossOnDrying" name="loss_on_drying" class="form-control" step="0.01" min="0" max="100" placeholder="Enter percentage">
+                  <small class="text-muted">Moisture content determination</small>
+                </div>
+                <div class="col-12">
+                  <label for="qcComments" class="form-label fw-bold">Test Notes</label>
+                  <textarea id="qcComments" name="comments" class="form-control" rows="3" placeholder="Enter detailed observations, test methods used, and any specific findings..."></textarea>
+                  <small class="text-muted">Document any observations or findings during testing</small>
+                </div>
+                <!-- Add test_notes field to match the field in RawMaterialQC model -->
+                <input type="hidden" name="test_notes" id="qcTestNotes">
+              </div>
+            </div>
+          </div>
+          
+          <!-- Final Result -->
+          <div class="card mb-3">
+            <div class="card-header bg-success text-white">
+              <h6 class="mb-0"><i class="fas fa-clipboard-check me-2"></i>Final Result</h6>
+            </div>
+            <div class="card-body">
+              <div class="row">
+                <div class="col-md-6">
+                  <label for="finalResult" class="form-label fw-bold">Final Result <span class="text-danger">*</span></label>
+                  <select id="finalResult" name="final_result" class="form-select form-control-lg" required aria-required="true">
+                    <option value="">-- Select Result --</option>
+                    <option value="pass">PASS</option>
+                    <option value="fail">FAIL</option>
+                  </select>
+                  <div class="form-text text-danger mt-1">Required field - determines if material can be used in production</div>
+                </div>
+                <div class="col-md-6">
+                  <div class="result-info-box alert alert-info mb-0">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>PASS:</strong> Material will be approved for QC and marked ready for release by Store Manager<br>
+                    <strong>FAIL:</strong> Material will be rejected and cannot be used in production
+                  </div>
+                </div>
+                
+                <!-- Add status field for consistency -->
+                <div class="col-md-6 mt-3">
+                  <label for="testStatus" class="form-label fw-bold">Status <span class="text-danger">*</span></label>
+                  <select id="testStatus" name="status" class="form-select" required>
+                    <option value="approved">Approved</option>
+                    <option value="rejected">Rejected</option>
+                    <option value="in_progress">In Progress</option>
+                  </select>
+                  <small class="text-muted">Will be set automatically based on final result</small>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div id="qcTestAlert" class="alert d-none"></div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" id="qcSaveButton" class="btn btn-primary">
+          <i class="fas fa-save me-2"></i>Save Test Results
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

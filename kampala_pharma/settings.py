@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     'reports',
     'fgs_management',
     'defect_reports',
+    'raw_materials',
 ]
 
 MIDDLEWARE = [
@@ -123,6 +124,10 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = [
     BASE_DIR / 'static',
 ]
+
+# Add static files serving in development
+if DEBUG:
+    STATICFILES_DIRS += [BASE_DIR / 'static']
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'

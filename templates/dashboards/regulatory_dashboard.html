@@ -129,6 +129,14 @@
                                                    class="btn btn-outline-primary btn-sm">
                                                     <i class="fas fa-eye"></i> Review
                                                 </a>
+                                                <form method="post" action="{% url 'dashboards:regulatory_dashboard' %}" style="display: inline;">
+                                                    {% csrf_token %}
+                                                    <input type="hidden" name="bmr_id" value="{{ execution.bmr.pk }}">
+                                                    <input type="hidden" name="action" value="view_materials">
+                                                    <button type="submit" class="btn btn-outline-info btn-sm">
+                                                        <i class="fas fa-flask"></i> QC Report
+                                                    </button>
+                                                </form>
                                                 <button type="button" class="btn btn-outline-success btn-sm"
                                                         onclick="approveRegulatory('{{ execution.bmr.pk }}')">
                                                     <i class="fas fa-check"></i> Approve

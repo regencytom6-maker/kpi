@@ -1,0 +1,448 @@
+{% extends 'base.html' %}
+
+{% block title %}Raw Material QC Report - BMR {{ bmr.batch_number }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .status-approved {
+        color: #28a745;
+    }
+    .status-pending {
+        color: #ffc107;
+    }
+    .status-rejected, .status-not_found, .status-insufficient {
+        color: #dc3545;
+    }
+    .qc-report-header {
+        background-color: rgba(0,0,0,0.03);
+    }
+    .table-responsive {
+        max-height: 600px;
+        overflow-y: auto;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{% url 'dashboards:dashboard_home' %}">Home</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'dashboards:qc_dashboard' %}">QC Dashboard</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Raw Material QC Report</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h2>Raw Material QC Report</h2>
+            <h5 class="text-muted">BMR {{ bmr.batch_number }} - {{ bmr.product.product_name }}</h5>
+        </div>
+        <div class="col-md-4 text-end">
+            <a href="{% url 'dashboards:qc_dashboard' %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-2"></i> Back to Dashboard
+            </a>
+        </div>
+    </div>
+
+    <!-- QC Status Card -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header qc-report-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">QC Status Summary</h5>
+                    <span class="{% if all_approved %}badge bg-success{% else %}badge bg-danger{% endif %} p-2">
+                        {% if all_approved %}
+                        <i class="fas fa-check-circle me-1"></i> All Materials QC Approved
+                        {% else %}
+                        <i class="fas fa-exclamation-circle me-1"></i> Some Materials Not QC Approved
+                        {% endif %}
+                    </span>
+                </div>
+                <div class="card-body">
+                    <div class="alert {% if all_approved %}alert-success{% else %}alert-warning{% endif %}" role="alert">
+                        {% if all_approved %}
+                        <p class="mb-0">
+                            <i class="fas fa-check-circle me-1"></i>
+                            <strong>All raw materials have passed QC testing and have sufficient quantity available.</strong>
+                            This BMR can be approved for production.
+                        </p>
+                        {% else %}
+                        <p class="mb-0">
+                            <i class="fas fa-exclamation-triangle me-1"></i>
+                            <strong>Some raw materials have not passed QC testing or have insufficient quantity.</strong>
+                            This BMR cannot be approved for production yet.
+                        </p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Materials Table -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header qc-report-header">
+                    <h5 class="mb-0">Raw Materials Detail</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover" id="rawMaterialsTable">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Material</th>
+                                    <th>Code</th>
+                                    <th>Required Quantity</th>
+                                    <th>Approved Quantity</th>
+                                    <th>Status</th>
+                                    <th>QC Tests</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for material in material_report %}
+                                <tr>
+                                    <td>{{ material.material_name }}</td>
+                                    <td><code>{{ material.material_code }}</code></td>
+                                    <td>{{ material.required_quantity }} {{ material.unit_of_measure }}</td>
+                                    <td>
+                                        {{ material.approved_quantity }} {{ material.unit_of_measure }}
+                                        {% if material.sufficient_quantity %}
+                                            <i class="fas fa-check-circle text-success ms-2"></i>
+                                        {% else %}
+                                            <i class="fas fa-times-circle text-danger ms-2"></i>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if material.status == 'approved' %}
+                                            <span class="status-approved">
+                                                <i class="fas fa-check-circle me-1"></i> Approved
+                                            </span>
+                                        {% elif material.status == 'insufficient' %}
+                                            <span class="status-insufficient">
+                                                <i class="fas fa-exclamation-circle me-1"></i> Insufficient Quantity
+                                            </span>
+                                        {% elif material.status == 'not_found' %}
+                                            <span class="status-not_found">
+                                                <i class="fas fa-times-circle me-1"></i> Not Found in Inventory
+                                            </span>
+                                        {% else %}
+                                            <span class="status-unknown">
+                                                <i class="fas fa-question-circle me-1"></i> Unknown
+                                            </span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if material.has_qc_tests %}
+                                            <i class="fas fa-check-circle text-success"></i> Available
+                                        {% else %}
+                                            <i class="fas fa-times-circle text-danger"></i> No Tests
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if material.material_id %}
+                                            <div class="btn-group">
+                                                <a href="{% url 'raw_materials:material_detail' material.material_id %}" class="btn btn-sm btn-outline-primary">
+                                                    <i class="fas fa-eye me-1"></i> View
+                                                </a>
+                                                <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" 
+                                                        data-bs-target="#testModal" 
+                                                        data-material-id="{{ material.material_id }}"
+                                                        data-material-name="{{ material.material_name }}"
+                                                        data-material-code="{{ material.material_code }}">
+                                                    <i class="fas fa-flask me-1"></i> Test
+                                                </button>
+                                            </div>
+                                        {% else %}
+                                            <button class="btn btn-sm btn-outline-secondary" disabled>
+                                                <i class="fas fa-ban me-1"></i> Not Available
+                                            </button>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                
+                                <!-- Batches Subrows -->
+                                {% if material.batches %}
+                                    {% for batch in material.batches %}
+                                    <tr class="table-light">
+                                        <td colspan="2" class="ps-5">
+                                            <small>
+                                                <i class="fas fa-flask me-1"></i> 
+                                                <strong>Batch {{ batch.batch_number }}</strong>
+                                            </small>
+                                        </td>
+                                        <td colspan="2">
+                                            <small>Available: {{ batch.quantity }} {{ material.unit_of_measure }}</small>
+                                        </td>
+                                        <td>
+                                            <small>Expires: {{ batch.expiry_date|date:"M d, Y" }}</small>
+                                        </td>
+                                        <td>
+                                            {% if batch.qc_test_id %}
+                                                <small>QC on: {{ batch.qc_date|date:"M d, Y" }}</small>
+                                            {% else %}
+                                                <span class="badge bg-warning">No QC Test</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if batch.qc_test_id %}
+                                                <a href="{% url 'raw_materials:qc_test_detail' batch.qc_test_id %}" class="btn btn-sm btn-outline-info">
+                                                    <i class="fas fa-file-alt me-1"></i> View Test
+                                                </a>
+                                            {% else %}
+                                                <!-- No actions needed - all materials are already tested during receiving -->
+                                                <span class="badge bg-success">Pre-Approved</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                {% endif %}
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div class="card-footer bg-white py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <a href="{% url 'dashboards:qc_dashboard' %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-arrow-left me-1"></i> Back to Dashboard
+                            </a>
+                        </div>
+                        <!-- Materials approval button removed - materials are already approved during receiving -->
+                        <div>
+                            <div class="alert alert-success">
+                                <i class="fas fa-check-circle me-1"></i> All materials have passed QC testing and are approved for production
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- QC Test Modal -->
+<div class="modal fade" id="testModal" tabindex="-1" aria-labelledby="testModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="testModalLabel">QC Test for <span id="materialNamePlaceholder"></span></h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="qcTestForm" method="post" action="{% url 'raw_materials:save_qc_test' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="material_id" id="material_id">
+                    <input type="hidden" name="batch_id" id="batch_id">
+                    <input type="hidden" name="bmr_id" value="{{ bmr.id }}">
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="batch_number">Batch Number:</label>
+                                <select class="form-select" id="batch_number" name="batch_number" required>
+                                    <option value="">-- Select Batch --</option>
+                                    <!-- Will be populated via AJAX -->
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="test_date">Test Date:</label>
+                                <input type="date" class="form-control" id="test_date" name="test_date" value="{% now 'Y-m-d' %}" required>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group mb-3">
+                        <label for="appearance">Appearance:</label>
+                        <textarea class="form-control" id="appearance" name="appearance" rows="2" required></textarea>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="identification_test">Identification Test:</label>
+                                <select class="form-select" id="identification_test" name="identification_test" required>
+                                    <option value="pass">Pass</option>
+                                    <option value="fail">Fail</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="solubility">Solubility:</label>
+                                <select class="form-select" id="solubility" name="solubility" required>
+                                    <option value="pass">Pass</option>
+                                    <option value="fail">Fail</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="ph_value">pH Value:</label>
+                                <input type="number" step="0.1" class="form-control" id="ph_value" name="ph_value" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="loss_on_drying">Loss on Drying (%):</label>
+                                <input type="number" step="0.01" class="form-control" id="loss_on_drying" name="loss_on_drying" required>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="assay_result">Assay Result (%):</label>
+                                <input type="number" step="0.01" class="form-control" id="assay_result" name="assay_result" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="final_result">Final Result:</label>
+                                <select class="form-select" id="final_result" name="final_result" required>
+                                    <option value="pass">Pass</option>
+                                    <option value="fail">Fail</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="comments">Comments:</label>
+                        <textarea class="form-control" id="comments" name="comments" rows="3"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="saveQcTest">Save Test Results</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
+<script>
+$(document).ready(function() {
+    // Initialize DataTable for Raw Materials
+    $('#rawMaterialsTable').DataTable({
+        pageLength: 10,
+        lengthMenu: [5, 10, 25, 50],
+        order: [[0, 'asc']],
+        responsive: true,
+        dom: '<"row mb-3"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>>' +
+             '<"row"<"col-sm-12"tr>>' +
+             '<"row mt-3"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>',
+    });
+    
+    // Setup CSRF token for AJAX
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    const csrftoken = getCookie('csrftoken');
+    
+    // Handle QC Test Modal
+    $('#testModal').on('show.bs.modal', function (event) {
+        const button = $(event.relatedTarget);
+        const materialId = button.data('material-id');
+        const materialName = button.data('material-name');
+        const materialCode = button.data('material-code');
+        
+        // Update modal content
+        $('#materialNamePlaceholder').text(materialName + ' (' + materialCode + ')');
+        $('#material_id').val(materialId);
+        
+        // Load available batches
+        $.ajax({
+            url: '/raw_materials/api/batches-by-material/' + materialId + '/',
+            type: 'GET',
+            dataType: 'json',
+            headers: {'X-CSRFToken': csrftoken},
+            success: function(data) {
+                const batchSelect = $('#batch_number');
+                batchSelect.empty();
+                batchSelect.append('<option value="">-- Select Batch --</option>');
+                
+                data.batches.forEach(function(batch) {
+                    batchSelect.append('<option value="' + batch.id + '" data-batch-number="' + batch.batch_number + '">' + 
+                        batch.batch_number + ' - Qty: ' + batch.quantity + '</option>');
+                });
+            },
+            error: function(xhr, status, error) {
+                console.error('Error fetching batches:', error);
+                alert('Error loading batch information. Please try again.');
+            }
+        });
+    });
+    
+    // Handle batch selection change
+    $('#batch_number').change(function() {
+        const batchId = $(this).val();
+        $('#batch_id').val(batchId);
+    });
+    
+    // Handle saving QC test
+    $('#saveQcTest').click(function() {
+        const form = $('#qcTestForm');
+        
+        // Basic form validation
+        if (!form[0].checkValidity()) {
+            form[0].reportValidity();
+            return;
+        }
+        
+        $.ajax({
+            url: form.attr('action'),
+            type: 'POST',
+            data: form.serialize(),
+            dataType: 'json',
+            headers: {'X-CSRFToken': csrftoken},
+            success: function(response) {
+                if (response.status === 'success') {
+                    alert('QC test saved successfully!');
+                    // Reload the page to show updated data
+                    window.location.reload();
+                } else {
+                    alert('Error: ' + response.message);
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error('Error saving QC test:', xhr.responseText);
+                alert('Error saving QC test. Please try again.');
+            }
+        });
+    });
+    
+    // Start QC button removed - materials are already QC approved during receiving
+});
+</script>
+{% endblock %}

@@ -1,0 +1,171 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}QC Test Detail | {{ material.material_name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .test-result-pass {
+        color: green;
+        font-weight: bold;
+    }
+    .test-result-fail {
+        color: red;
+        font-weight: bold;
+    }
+    .test-result-pending {
+        color: orange;
+        font-weight: bold;
+    }
+    .parameter-card {
+        border-radius: 8px;
+        margin-bottom: 15px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .test-metadata {
+        font-size: 0.9rem;
+        color: #666;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{% url 'dashboards:dashboard_home' %}">Home</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'raw_materials:qc_dashboard' %}">QC Dashboard</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">QC Test Details</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h2>QC Test Results: {{ material.material_name }}</h2>
+            <h5>Batch: {{ batch.batch_number }}</h5>
+        </div>
+        <div class="col-md-4 text-right">
+            <a href="{% url 'raw_materials:material_detail' material.id %}" class="btn btn-outline-primary">
+                <i class="fas fa-arrow-left"></i> View Material
+            </a>
+            {% if user.role == 'qc' and not test.completed_date %}
+            <a href="{% url 'raw_materials:perform_qc_test' batch.id %}" class="btn btn-warning">
+                <i class="fas fa-edit"></i> Edit Test
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="card-title mb-0">Material Information</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>Material Code:</strong> {{ material.material_code }}</p>
+                    <p><strong>Material Name:</strong> {{ material.material_name }}</p>
+                    <p><strong>Category:</strong> {{ material.get_category_display }}</p>
+                    <p><strong>Supplier:</strong> {{ batch.supplier }}</p>
+                    <p><strong>Batch Number:</strong> {{ batch.batch_number }}</p>
+                    <p><strong>Quantity:</strong> {{ batch.quantity_received }} {{ material.unit_of_measure }}</p>
+                    <p><strong>Status:</strong> <span class="badge {% if batch.status == 'approved' %}bg-success{% elif batch.status == 'rejected' %}bg-danger{% else %}bg-warning{% endif %}">{{ batch.get_status_display }}</span></p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header {% if test.final_result == 'PASS' %}bg-success{% elif test.final_result == 'FAIL' %}bg-danger{% else %}bg-warning{% endif %} text-white">
+                    <h5 class="card-title mb-0">Test Results - {{ test.final_result }}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <p><strong>Test Date:</strong> {{ test.started_date|date:"F d, Y" }}</p>
+                            <p><strong>Tested By:</strong> {{ test.tested_by.get_full_name }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Completed Date:</strong> {% if test.completed_date %}{{ test.completed_date|date:"F d, Y" }}{% else %}Pending{% endif %}</p>
+                            <p><strong>Final Result:</strong> <span class="badge {% if test.final_result == 'PASS' %}bg-success{% elif test.final_result == 'FAIL' %}bg-danger{% else %}bg-warning{% endif %}">{{ test.final_result }}</span></p>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <h5>Test Parameters</h5>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card parameter-card">
+                                <div class="card-body">
+                                    <h6>Appearance</h6>
+                                    <p>{{ test.appearance_result }}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card parameter-card">
+                                <div class="card-body">
+                                    <h6>Identification</h6>
+                                    <p>{{ test.identification_result }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card parameter-card">
+                                <div class="card-body">
+                                    <h6>Assay</h6>
+                                    <p>{{ test.assay_result|default:"Not Performed" }}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card parameter-card">
+                                <div class="card-body">
+                                    <h6>Purity</h6>
+                                    <p>{{ test.purity_result|default:"Not Performed" }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card parameter-card">
+                                <div class="card-body">
+                                    <h6>pH Value</h6>
+                                    <p>{{ test.ph_value|default:"Not Measured" }}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card parameter-card">
+                                <div class="card-body">
+                                    <h6>Loss on Drying (%)</h6>
+                                    <p>{{ test.loss_on_drying|default:"Not Measured" }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if test.test_notes %}
+                    <div class="card parameter-card mt-3">
+                        <div class="card-body">
+                            <h6>Notes</h6>
+                            <p>{{ test.test_notes }}</p>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

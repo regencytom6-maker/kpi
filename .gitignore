@@ -13,6 +13,8 @@ pharma_env/
 .venv/
 venv/
 env/
+new_env/
+*_env/
 
 # IDE
 .vscode/

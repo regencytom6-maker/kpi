@@ -1,6 +1,8 @@
 from django.contrib import admin
 from django import forms
 from .models import Product, ProductIngredient, ProductSpecification
+from .models_material import ProductMaterial
+from raw_materials.models import RawMaterial
 
 class ProductAdminForm(forms.ModelForm):
     class Meta:
@@ -38,8 +40,9 @@ class ProductAdmin(admin.ModelAdmin):
     fields = [
         'product_name', 'product_type', 'coating_type', 'tablet_type', 'capsule_type',
         'standard_batch_size', 'batch_size_unit', 'packaging_size_in_units',
-        'is_active'
+        'raw_materials', 'is_active'
     ]
+    filter_horizontal = ('raw_materials',)
     
     class Media:
         js = ('admin/js/product_conditional.js',)
@@ -47,6 +50,50 @@ class ProductAdmin(admin.ModelAdmin):
     def get_form(self, request, obj=None, **kwargs):
         form = super().get_form(request, obj, **kwargs)
         return form
+        
+# Create an inline admin for ProductMaterial to use in both Product and RawMaterial admins
+class ProductMaterialInline(admin.TabularInline):
+    model = ProductMaterial
+    extra = 1
+    autocomplete_fields = ['raw_material', 'product']
+    fields = ('raw_material', 'required_quantity', 'unit_of_measure', 'is_active_ingredient')
+    
+    class Media:
+        js = ('admin/js/product_material_admin.js',)
+    
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        # Show all raw materials regardless of whether they're already linked
+        # This prevents "Select a valid choice" errors when editing
+        if db_field.name == "raw_material":
+            kwargs["queryset"] = RawMaterial.objects.all()
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+# Update the ProductAdmin to include the ProductMaterialInline
+ProductAdmin.inlines = [ProductMaterialInline]
+
+@admin.register(ProductMaterial)
+class ProductMaterialAdmin(admin.ModelAdmin):
+    list_display = ('product', 'raw_material', 'required_quantity', 'unit_of_measure', 
+                  'is_active_ingredient', 'material_approval_status', 'available_quantity_display', 'quantity_sufficient')
+    list_filter = ('is_active_ingredient', 'product', 'raw_material')
+    search_fields = ('product__product_name', 'raw_material__material_name', 'raw_material__material_code')
+    autocomplete_fields = ['product', 'raw_material']
+    
+    def material_approval_status(self, obj):
+        if obj.is_approved():
+            return True
+        return False
+    material_approval_status.boolean = True
+    material_approval_status.short_description = 'QC Approved'
+    
+    def available_quantity_display(self, obj):
+        return obj.available_quantity_with_unit()
+    available_quantity_display.short_description = 'Available Quantity'
+    
+    def quantity_sufficient(self, obj):
+        return obj.has_sufficient_quantity()
+    quantity_sufficient.boolean = True
+    quantity_sufficient.short_description = 'Quantity Sufficient'
 
 @admin.register(ProductIngredient)
 class ProductIngredientAdmin(admin.ModelAdmin):

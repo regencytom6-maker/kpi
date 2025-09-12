@@ -1,0 +1,590 @@
+{% extends 'base.html' %}
+
+{% block title %}Quality Control Dashboard - Kampala Pharmaceutical Industries{% endblock %}
+
+{% block content %}
+<div class="alert alert-info alert-dismissible fade show" role="alert">
+    <strong>New Layout!</strong> You're using the sidebar navigation layout. To switch back to the tab layout, 
+    <a href="{% url 'dashboards:qc_dashboard' %}" class="alert-link">click here</a>.
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+
+<div class="container-fluid mt-3">
+    <div class="row">
+        <!-- Sidebar Navigation -->
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">QC Dashboard</h5>
+                </div>
+                <div class="list-group list-group-flush" id="qc-sidebar-tabs">
+                    <a class="list-group-item list-group-item-action active" id="raw-material-tests-tab" data-bs-toggle="tab" href="#raw-material-tests" role="tab">
+                        <i class="fas fa-flask me-2"></i> Raw Material Tests
+                    </a>
+                    <a class="list-group-item list-group-item-action" id="in-process-tests-tab" data-bs-toggle="tab" href="#in-process-tests" role="tab">
+                        <i class="fas fa-vial me-2"></i> In-Process Tests
+                    </a>
+                    <a class="list-group-item list-group-item-action" id="finished-product-tests-tab" data-bs-toggle="tab" href="#finished-product-tests" role="tab">
+                        <i class="fas fa-clipboard-check me-2"></i> Finished Product Tests
+                    </a>
+                    <a class="list-group-item list-group-item-action" id="add-test-tab" data-bs-toggle="tab" href="#add-test" role="tab">
+                        <i class="fas fa-plus-circle me-2"></i> Add New Test
+                    </a>
+                    <a class="list-group-item list-group-item-action" id="reports-tab" data-bs-toggle="tab" href="#reports" role="tab">
+                        <i class="fas fa-chart-bar me-2"></i> QC Reports
+                    </a>
+                </div>
+            </div>
+
+            <!-- Dashboard Stats -->
+            <div class="card mt-3">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">QC Stats</h5>
+                </div>
+                <div class="card-body p-0">
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Pending Tests
+                            <span class="badge bg-primary rounded-pill">{{ stats.pending_tests }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Approved Today
+                            <span class="badge bg-success rounded-pill">{{ stats.approved_today }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Rejected Today
+                            <span class="badge bg-danger rounded-pill">{{ stats.rejected_today }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Total Tests
+                            <span class="badge bg-info rounded-pill">{{ stats.total_tests }}</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Recent Activity -->
+            <div class="card mt-3">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0">Recent Activity</h5>
+                </div>
+                <div class="card-body p-0" style="max-height: 300px; overflow-y: auto;">
+                    <ul class="list-group list-group-flush">
+                        {% for activity in recent_activity|slice:":5" %}
+                            <li class="list-group-item py-2">
+                                <small class="text-muted d-block">{{ activity.completed_date|date:"d M Y H:i" }}</small>
+                                <span class="d-block">
+                                    {{ activity.raw_material_batch.raw_material.material_name }}
+                                    {% if activity.status == 'approved' %}
+                                        <span class="badge bg-success">Approved</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">Rejected</span>
+                                    {% endif %}
+                                </span>
+                            </li>
+                        {% empty %}
+                            <li class="list-group-item text-center">No recent activity</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Main Content Area -->
+        <div class="col-md-9">
+            <div class="tab-content">
+                <!-- Raw Material Tests Tab -->
+                <div class="tab-pane fade show active" id="raw-material-tests" role="tabpanel">
+                    <div class="card">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0">Raw Material Quality Control Tests</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle me-2"></i> Review and approve raw material QC tests
+                            </div>
+                            
+                            {% if pending_tests %}
+                                <div class="table-responsive">
+                                    <table class="table table-hover">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Material</th>
+                                                <th>Batch/Lot</th>
+                                                <th>Submitted</th>
+                                                <th>Status</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for test in pending_tests %}
+                                                <tr>
+                                                    <td>{{ test.raw_material_batch.raw_material.material_name }}</td>
+                                                    <td>{{ test.raw_material_batch.batch_number }}</td>
+                                                    <td>{{ test.created_date|date:"d M Y" }}</td>
+                                                    <td>
+                                                        <span class="badge bg-warning">Pending</span>
+                                                    </td>
+                                                    <td>
+                                                        <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#viewTestModal" data-test-id="{{ test.id }}" data-material="{{ test.raw_material_batch.raw_material.material_name }}" data-batch="{{ test.raw_material_batch.batch_number }}">
+                                                            <i class="fas fa-eye me-1"></i> View
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            {% else %}
+                                <div class="alert alert-success">
+                                    <i class="fas fa-check-circle me-2"></i> No pending raw material tests at this time.
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- In-Process Tests Tab -->
+                <div class="tab-pane fade" id="in-process-tests" role="tabpanel">
+                    <div class="card">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0">In-Process Quality Control Tests</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle me-2"></i> Review and approve in-process QC tests
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="card mb-3">
+                                        <div class="card-header bg-warning text-dark">
+                                            <h5 class="mb-0">Batch 0012025 - Paracetamol 500mg</h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <p><strong>Phase:</strong> Granulation</p>
+                                            <p><strong>Test Type:</strong> Moisture Content</p>
+                                            <p><strong>Submitted:</strong> Today, 10:15 AM</p>
+                                            <button class="btn btn-sm btn-primary">Review Test</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <div class="card mb-3">
+                                        <div class="card-header bg-warning text-dark">
+                                            <h5 class="mb-0">Batch 0022025 - Amoxicillin 250mg</h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <p><strong>Phase:</strong> Compression</p>
+                                            <p><strong>Test Type:</strong> Hardness Test</p>
+                                            <p><strong>Submitted:</strong> Yesterday, 3:45 PM</p>
+                                            <button class="btn btn-sm btn-primary">Review Test</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Finished Product Tests Tab -->
+                <div class="tab-pane fade" id="finished-product-tests" role="tabpanel">
+                    <div class="card">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0">Finished Product Quality Control Tests</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle me-2"></i> Review and approve finished product QC tests
+                            </div>
+                            
+                            <div class="alert alert-warning">
+                                <i class="fas fa-exclamation-triangle me-2"></i> No pending finished product tests at this time.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Add New Test Tab -->
+                <div class="tab-pane fade" id="add-test" role="tabpanel">
+                    <div class="card">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0">Add New Quality Control Test</h5>
+                        </div>
+                        <div class="card-body">
+                            <form id="addNewTestForm">
+                                <div class="mb-3">
+                                    <label for="testType" class="form-label">Test Type*</label>
+                                    <select class="form-select" id="testType" name="testType" required>
+                                        <option value="">Select Test Type</option>
+                                        <option value="raw_material">Raw Material Test</option>
+                                        <option value="in_process">In-Process Test</option>
+                                        <option value="finished_product">Finished Product Test</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="materialBatch" class="form-label">Material/Batch*</label>
+                                    <select class="form-select" id="materialBatch" name="materialBatch" required>
+                                        <option value="">Select Material/Batch</option>
+                                        <!-- Options will be populated based on test type -->
+                                    </select>
+                                </div>
+                                
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
+                                        <label for="testMethod" class="form-label">Test Method*</label>
+                                        <select class="form-select" id="testMethod" name="testMethod" required>
+                                            <option value="">Select Method</option>
+                                            <option value="hplc">HPLC</option>
+                                            <option value="uv">UV Spectroscopy</option>
+                                            <option value="ir">IR Spectroscopy</option>
+                                            <option value="gc">Gas Chromatography</option>
+                                            <option value="dissolution">Dissolution Test</option>
+                                            <option value="moisture">Moisture Determination</option>
+                                            <option value="visual">Visual Inspection</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div class="col-md-6">
+                                        <label for="testSpecification" class="form-label">Test Specification*</label>
+                                        <input type="text" class="form-control" id="testSpecification" name="testSpecification" placeholder="e.g., 95-105% of labeled amount" required>
+                                    </div>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="testResults" class="form-label">Test Results*</label>
+                                    <textarea class="form-control" id="testResults" name="testResults" rows="3" required></textarea>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="attachments" class="form-label">Attachments</label>
+                                    <input type="file" class="form-control" id="attachments" name="attachments" multiple>
+                                    <div class="form-text">Upload test reports, chromatograms, or other supporting documentation</div>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="comments" class="form-label">Comments</label>
+                                    <textarea class="form-control" id="comments" name="comments" rows="2"></textarea>
+                                </div>
+                                
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save me-1"></i> Submit Test Results
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- QC Reports Tab -->
+                <div class="tab-pane fade" id="reports" role="tabpanel">
+                    <div class="card">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0">QC Reports</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle me-2"></i> Generate and view quality control related reports.
+                            </div>
+                            
+                            <div class="list-group mb-4">
+                                <a href="#" class="list-group-item list-group-item-action">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <h5 class="mb-1"><i class="fas fa-file-alt me-2"></i> Raw Material QC Summary Report</h5>
+                                        <small><i class="fas fa-download"></i></small>
+                                    </div>
+                                    <p class="mb-1">Summary of all raw material testing results</p>
+                                </a>
+                                <a href="#" class="list-group-item list-group-item-action">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <h5 class="mb-1"><i class="fas fa-chart-pie me-2"></i> QC Approval Rate Report</h5>
+                                        <small><i class="fas fa-download"></i></small>
+                                    </div>
+                                    <p class="mb-1">Track approval and rejection rates by material and supplier</p>
+                                </a>
+                                <a href="#" class="list-group-item list-group-item-action">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <h5 class="mb-1"><i class="fas fa-clock me-2"></i> QC Turnaround Time Report</h5>
+                                        <small><i class="fas fa-download"></i></small>
+                                    </div>
+                                    <p class="mb-1">Analysis of testing turnaround times by test type</p>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- View Test Modal -->
+<div class="modal fade" id="viewTestModal" tabindex="-1" aria-labelledby="viewTestModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="viewTestModalLabel">Raw Material Test</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="testDetails">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6 class="fw-bold">Material:</h6>
+                            <p id="testMaterial"></p>
+                            
+                            <h6 class="fw-bold">Batch/Lot:</h6>
+                            <p id="testBatch"></p>
+                            
+                            <h6 class="fw-bold">Received Date:</h6>
+                            <p>January 15, 2025</p>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="fw-bold">Supplier:</h6>
+                            <p>Kampala Chemical Supplies Ltd.</p>
+                            
+                            <h6 class="fw-bold">Manufacturer:</h6>
+                            <p>Eastern Pharmaceuticals, India</p>
+                            
+                            <h6 class="fw-bold">Expiry Date:</h6>
+                            <p>June 2027</p>
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    
+                    <h5>Test Results</h5>
+                    <div class="table-responsive">
+                        <table class="table table-bordered">
+                            <thead>
+                                <tr>
+                                    <th>Test</th>
+                                    <th>Specification</th>
+                                    <th>Result</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Identification</td>
+                                    <td>Positive for active ingredient</td>
+                                    <td>Positive</td>
+                                    <td><span class="badge bg-success">Pass</span></td>
+                                </tr>
+                                <tr>
+                                    <td>Assay</td>
+                                    <td>98.0% - 102.0%</td>
+                                    <td>99.5%</td>
+                                    <td><span class="badge bg-success">Pass</span></td>
+                                </tr>
+                                <tr>
+                                    <td>Related Substances</td>
+                                    <td>NMT 0.5% individual, NMT 1.0% total</td>
+                                    <td>0.3% individual, 0.8% total</td>
+                                    <td><span class="badge bg-success">Pass</span></td>
+                                </tr>
+                                <tr>
+                                    <td>Loss on Drying</td>
+                                    <td>NMT 0.5%</td>
+                                    <td>0.4%</td>
+                                    <td><span class="badge bg-success">Pass</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <hr>
+                    
+                    <h5>Analyst Comments</h5>
+                    <div class="card bg-light">
+                        <div class="card-body">
+                            <p>All tests performed according to USP monograph. Sample meets all required specifications.</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <form id="qcApprovalForm" class="mt-4">
+                    <input type="hidden" id="qcTestId" name="qc_test_id">
+                    
+                    <div class="mb-3">
+                        <label for="reviewerComments" class="form-label">Reviewer Comments:</label>
+                        <textarea class="form-control" id="reviewerComments" name="comments" rows="3"></textarea>
+                    </div>
+                    
+                    <div class="d-flex justify-content-end">
+                        <button type="button" class="btn btn-danger me-2" data-bs-dismiss="modal" data-bs-toggle="modal" data-bs-target="#rejectTestModal">
+                            <i class="fas fa-times me-1"></i> Reject
+                        </button>
+                        <button type="button" class="btn btn-success" data-bs-dismiss="modal" data-bs-toggle="modal" data-bs-target="#approveTestModal">
+                            <i class="fas fa-check me-1"></i> Approve
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Approve Test Modal -->
+<div class="modal fade" id="approveTestModal" tabindex="-1" aria-labelledby="approveTestModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title" id="approveTestModalLabel">Confirm Approval</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{% url 'dashboards:qc_dashboard_sidebar' %}" method="post">
+                {% csrf_token %}
+                <input type="hidden" name="qc_test_id" id="approveTestId">
+                <input type="hidden" name="action" value="approve">
+                
+                <div class="modal-body">
+                    <p>You are about to approve the QC test for <span id="approveTestMaterial" class="fw-bold"></span>, batch <span id="approveTestBatch" class="fw-bold"></span>.</p>
+                    <p class="text-success"><i class="fas fa-info-circle me-1"></i> This will release the material for production use.</p>
+                    
+                    <div class="mb-3">
+                        <label for="approvalComments" class="form-label">Additional Comments:</label>
+                        <textarea class="form-control" id="approvalComments" name="comments" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">Confirm Approval</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Reject Test Modal -->
+<div class="modal fade" id="rejectTestModal" tabindex="-1" aria-labelledby="rejectTestModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="rejectTestModalLabel">Confirm Rejection</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{% url 'dashboards:qc_dashboard_sidebar' %}" method="post">
+                {% csrf_token %}
+                <input type="hidden" name="qc_test_id" id="rejectTestId">
+                <input type="hidden" name="action" value="reject">
+                
+                <div class="modal-body">
+                    <p>You are about to reject the QC test for <span id="rejectTestMaterial" class="fw-bold"></span>, batch <span id="rejectTestBatch" class="fw-bold"></span>.</p>
+                    <p class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i> This material will not be available for production use.</p>
+                    
+                    <div class="mb-3">
+                        <label for="rejectionComments" class="form-label">Rejection Reason*:</label>
+                        <textarea class="form-control" id="rejectionComments" name="comments" rows="3" required></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger">Confirm Rejection</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Setup modal data binding
+    var viewTestModal = document.getElementById('viewTestModal');
+    if (viewTestModal) {
+        viewTestModal.addEventListener('show.bs.modal', function(event) {
+            var button = event.relatedTarget;
+            var testId = button.getAttribute('data-test-id');
+            var material = button.getAttribute('data-material');
+            var batch = button.getAttribute('data-batch');
+            
+            // Set modal field values
+            document.getElementById('qcTestId').value = testId;
+            document.getElementById('testMaterial').textContent = material;
+            document.getElementById('testBatch').textContent = batch;
+            
+            // Set values for approval/rejection modals
+            document.getElementById('approveTestId').value = testId;
+            document.getElementById('approveTestMaterial').textContent = material;
+            document.getElementById('approveTestBatch').textContent = batch;
+            
+            document.getElementById('rejectTestId').value = testId;
+            document.getElementById('rejectTestMaterial').textContent = material;
+            document.getElementById('rejectTestBatch').textContent = batch;
+        });
+    }
+    
+    // Sync comments between modals
+    var reviewerComments = document.getElementById('reviewerComments');
+    if (reviewerComments) {
+        reviewerComments.addEventListener('input', function() {
+            var comments = this.value;
+            document.getElementById('approvalComments').value = comments;
+            document.getElementById('rejectionComments').value = comments;
+        });
+    }
+    
+    // Form submission for adding new test
+    var addNewTestForm = document.getElementById('addNewTestForm');
+    if (addNewTestForm) {
+        addNewTestForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            // Show loading indicator
+            var submitButton = this.querySelector('button[type="submit"]');
+            var originalText = submitButton.innerHTML;
+            submitButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Submitting...';
+            submitButton.disabled = true;
+            
+            // In a real implementation, you would submit to your backend API
+            // Simulate successful submission after 1.5 seconds
+            setTimeout(function() {
+                submitButton.innerHTML = '<i class="fas fa-check me-1"></i> Submitted!';
+                submitButton.classList.remove('btn-primary');
+                submitButton.classList.add('btn-success');
+                
+                // Reset form after 2 seconds
+                setTimeout(function() {
+                    addNewTestForm.reset();
+                    submitButton.innerHTML = originalText;
+                    submitButton.classList.remove('btn-success');
+                    submitButton.classList.add('btn-primary');
+                    submitButton.disabled = false;
+                    
+                    // Show success message
+                    alert('QC test submitted successfully!');
+                }, 2000);
+            }, 1500);
+        });
+    }
+    
+    // Dynamic content for material/batch selector based on test type
+    var testType = document.getElementById('testType');
+    if (testType) {
+        testType.addEventListener('change', function() {
+            var selectedType = this.value;
+            var materialSelect = document.getElementById('materialBatch');
+            materialSelect.innerHTML = '';
+            
+            if (selectedType === 'raw_material') {
+                materialSelect.add(new Option('Paracetamol - Lot A12345', 'rm_1'));
+                materialSelect.add(new Option('Starch - Lot S78901', 'rm_2'));
+                materialSelect.add(new Option('Magnesium Stearate - Lot M45678', 'rm_3'));
+                materialSelect.add(new Option('Microcrystalline Cellulose - Lot C23456', 'rm_4'));
+            } else if (selectedType === 'in_process') {
+                materialSelect.add(new Option('Batch 0012025 - Granulation', 'ip_1'));
+                materialSelect.add(new Option('Batch 0022025 - Compression', 'ip_2'));
+                materialSelect.add(new Option('Batch 0032025 - Blending', 'ip_3'));
+            } else if (selectedType === 'finished_product') {
+                materialSelect.add(new Option('Batch 0012025 - Paracetamol 500mg', 'fp_1'));
+                materialSelect.add(new Option('Batch 0022025 - Amoxicillin 250mg', 'fp_2'));
+                materialSelect.add(new Option('Batch 0032025 - Ibuprofen 400mg', 'fp_3'));
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,266 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ material.material_name }} Details{% endblock %}
+
+{% block extra_css %}
+<style>
+    .badge-pending {
+        background-color: #ffc107;
+        color: #212529;
+    }
+    .badge-approved {
+        background-color: #28a745;
+        color: white;
+    }
+    .badge-rejected {
+        background-color: #dc3545;
+        color: white;
+    }
+    .batch-card {
+        transition: all 0.2s ease;
+    }
+    .batch-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{% url 'dashboards:dashboard_home' %}">Home</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'raw_materials:dashboard' %}">Raw Materials</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">{{ material.material_name }}</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h2>{{ material.material_name }}</h2>
+            <h5 class="text-muted">{{ material.material_code }}</h5>
+        </div>
+        <div class="col-md-4 text-right">
+            {% if user.role == 'store_manager' %}
+            <a href="#" class="btn btn-primary">
+                <i class="fas fa-plus"></i> Add New Batch
+            </a>
+            {% endif %}
+            <a href="{% url 'raw_materials:dashboard' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i> Back to Dashboard
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="card-title mb-0">Material Information</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>Material Code:</strong> {{ material.material_code }}</p>
+                    <p><strong>Material Name:</strong> {{ material.material_name }}</p>
+                    <p><strong>Category:</strong> {{ material.get_category_display }}</p>
+                    <p><strong>Unit of Measure:</strong> {{ material.unit_of_measure }}</p>
+                    <p><strong>Current Stock:</strong> {{ approved_quantity }} {{ material.unit_of_measure }}</p>
+                    <p><strong>Reorder Level:</strong> {{ material.reorder_level }} {{ material.unit_of_measure }}</p>
+                    <p><strong>Default Supplier:</strong> {{ material.default_supplier|default:"Not specified" }}</p>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h5 class="card-title mb-0">Stock Status</h5>
+                </div>
+                <div class="card-body">
+                    <div class="text-center">
+                        <div class="mb-3">
+                            <h1>{{ approved_quantity }}</h1>
+                            <p class="text-muted">{{ material.unit_of_measure }}</p>
+                        </div>
+                        
+                        <div class="progress mb-3" style="height: 20px;">
+                            {% if material.reorder_level > 0 %}
+                                {% with percentage=approved_quantity|floatformat:2 %}
+                                    {% if percentage > 100 %}
+                                        <div class="progress-bar bg-success" role="progressbar" style="width: 100%" aria-valuenow="100" aria-valuemin="0" aria-valuemax="100"></div>
+                                    {% elif percentage > 50 %}
+                                        <div class="progress-bar bg-success" role="progressbar" style="width: {{ percentage }}%" aria-valuenow="{{ percentage }}" aria-valuemin="0" aria-valuemax="100"></div>
+                                    {% elif percentage > 25 %}
+                                        <div class="progress-bar bg-warning" role="progressbar" style="width: {{ percentage }}%" aria-valuenow="{{ percentage }}" aria-valuemin="0" aria-valuemax="100"></div>
+                                    {% else %}
+                                        <div class="progress-bar bg-danger" role="progressbar" style="width: {{ percentage }}%" aria-valuenow="{{ percentage }}" aria-valuemin="0" aria-valuemax="100"></div>
+                                    {% endif %}
+                                {% endwith %}
+                            {% else %}
+                                <div class="progress-bar bg-success" role="progressbar" style="width: 100%" aria-valuenow="100" aria-valuemin="0" aria-valuemax="100"></div>
+                            {% endif %}
+                        </div>
+                        
+                        <p class="text-{% if approved_quantity <= material.reorder_level %}danger{% else %}success{% endif %}">
+                            {% if approved_quantity <= material.reorder_level %}
+                                <i class="fas fa-exclamation-triangle"></i> Below reorder level
+                            {% else %}
+                                <i class="fas fa-check-circle"></i> Stock level satisfactory
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-8">
+            <ul class="nav nav-tabs mb-3" id="myTab" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <a class="nav-link active" id="batches-tab" data-toggle="tab" href="#batches" role="tab" aria-controls="batches" aria-selected="true">Batches</a>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <a class="nav-link" id="qc-tab" data-toggle="tab" href="#qc" role="tab" aria-controls="qc" aria-selected="false">QC Tests</a>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <a class="nav-link" id="dispensing-tab" data-toggle="tab" href="#dispensing" role="tab" aria-controls="dispensing" aria-selected="false">Dispensing History</a>
+                </li>
+            </ul>
+            
+            <div class="tab-content" id="myTabContent">
+                <div class="tab-pane fade show active" id="batches" role="tabpanel" aria-labelledby="batches-tab">
+                    <div class="row">
+                        {% for batch in batches %}
+                        <div class="col-md-6 mb-3">
+                            <div class="card batch-card h-100">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <h6 class="mb-0">{{ batch.batch_number }}</h6>
+                                    <span class="badge badge-{{ batch.status }}">{{ batch.get_status_display }}</span>
+                                </div>
+                                <div class="card-body">
+                                    <p><strong>Received:</strong> {{ batch.received_date|date:"M d, Y" }}</p>
+                                    <p><strong>Quantity:</strong> {{ batch.quantity_received }} {{ material.unit_of_measure }}</p>
+                                    <p><strong>Remaining:</strong> {{ batch.quantity_remaining }} {{ material.unit_of_measure }}</p>
+                                    <p><strong>Supplier:</strong> {{ batch.supplier }}</p>
+                                    <p><strong>Expiry:</strong> {{ batch.expiry_date|date:"M d, Y" }}</p>
+                                </div>
+                                <div class="card-footer bg-transparent">
+                                    {% if batch.status == 'pending_qc' and user.role == 'qc' %}
+                                    <a href="{% url 'raw_materials:perform_qc_test' batch.id %}" class="btn btn-sm btn-primary">Perform QC</a>
+                                    {% elif batch.status == 'approved' and user.role == 'store_manager' %}
+                                    <a href="#" class="btn btn-sm btn-success">Dispense</a>
+                                    {% endif %}
+                                    
+                                    {% if batch.qc_test %}
+                                    <a href="{% url 'raw_materials:qc_test_detail' batch.qc_test.id %}" class="btn btn-sm btn-info">View QC Results</a>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% empty %}
+                        <div class="col-12">
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle"></i> No batches available for this material.
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                
+                <div class="tab-pane fade" id="qc" role="tabpanel" aria-labelledby="qc-tab">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Batch</th>
+                                    <th>Result</th>
+                                    <th>Tested By</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for test in qc_tests %}
+                                <tr>
+                                    <td>{{ test.started_date|date:"M d, Y" }}</td>
+                                    <td>{{ test.material_batch.batch_number }}</td>
+                                    <td>
+                                        <span class="badge badge-{{ test.final_result|lower }}">
+                                            {{ test.final_result }}
+                                        </span>
+                                    </td>
+                                    <td>{{ test.tested_by.get_full_name }}</td>
+                                    <td>
+                                        <a href="{% url 'raw_materials:qc_test_detail' test.id %}" class="btn btn-sm btn-info">
+                                            <i class="fas fa-eye"></i> View
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="5" class="text-center">No QC tests available for this material</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div class="tab-pane fade" id="dispensing" role="tabpanel" aria-labelledby="dispensing-tab">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>BMR</th>
+                                    <th>Quantity</th>
+                                    <th>Status</th>
+                                    <th>Dispensed By</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in dispensing_items %}
+                                <tr>
+                                    <td>{{ item.dispensing.started_date|date:"M d, Y" }}</td>
+                                    <td>
+                                        {% if item.dispensing.bmr %}
+                                            <a href="{% url 'bmr:detail' item.dispensing.bmr.id %}">{{ item.dispensing.bmr.bmr_number }}</a>
+                                        {% else %}
+                                            N/A
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ item.quantity_dispensed }} {{ material.unit_of_measure }}</td>
+                                    <td>
+                                        <span class="badge badge-{{ item.dispensing.status }}">
+                                            {{ item.dispensing.get_status_display }}
+                                        </span>
+                                    </td>
+                                    <td>{{ item.dispensing.dispensed_by.get_full_name }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="5" class="text-center">No dispensing history available for this material</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    $(document).ready(function() {
+        $('#myTab a').on('click', function (e) {
+            e.preventDefault();
+            $(this).tab('show');
+        });
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,84 @@
+<!-- In-Stock Materials Modal -->
+<div class="modal fade" id="inStockMaterialsModal" tabindex="-1" aria-labelledby="inStockMaterialsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="inStockMaterialsModalLabel">
+                    <i class="fas fa-warehouse me-2"></i>In-Stock Materials Inventory
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Material Name</th>
+                                <th>Code</th>
+                                <th>Category</th>
+                                <th>Total Quantity</th>
+                                <th>Unit</th>
+                                <th>Batches</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in in_stock_materials %}
+                            <tr>
+                                <td><strong>{{ item.material.material_name }}</strong></td>
+                                <td>{{ item.material.material_code }}</td>
+                                <td>{{ item.material.get_category_display }}</td>
+                                <td class="fw-bold">{{ item.total_quantity }}</td>
+                                <td>{{ item.material.unit_of_measure }}</td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-info" type="button" 
+                                        data-bs-toggle="collapse" data-bs-target="#batches{{ item.material.id }}" 
+                                        aria-expanded="false" aria-controls="batches{{ item.material.id }}">
+                                        <i class="fas fa-layer-group me-1"></i>Show Batches ({{ item.batches.count }})
+                                    </button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td colspan="6" class="p-0">
+                                    <div class="collapse" id="batches{{ item.material.id }}">
+                                        <div class="card card-body m-2 bg-light">
+                                            <table class="table table-sm table-bordered">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Batch Number</th>
+                                                        <th>Remaining Quantity</th>
+                                                        <th>Expiry Date</th>
+                                                        <th>QC Status</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {% for batch in item.batches %}
+                                                    <tr>
+                                                        <td>{{ batch.batch_number }}</td>
+                                                        <td>{{ batch.quantity_remaining }} {{ item.material.unit_of_measure }}</td>
+                                                        <td>{{ batch.expiry_date|date:"M d, Y" }}</td>
+                                                        <td>
+                                                            <span class="badge bg-success">Approved</span>
+                                                        </td>
+                                                    </tr>
+                                                    {% endfor %}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="6" class="text-center">No materials currently in stock</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>

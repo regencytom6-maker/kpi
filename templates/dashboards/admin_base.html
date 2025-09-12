@@ -339,6 +339,11 @@
                     </a>
                 </li>
                 <li>
+                    <a href="{% url 'raw_materials:inventory_monitor' %}" class="{% if request.resolver_match.url_name == 'inventory_monitor' %}active{% endif %}">
+                        <i class="fas fa-boxes"></i> Inventory Monitor
+                    </a>
+                </li>
+                <li>
                     <a href="{% url 'reports:timeline_list' %}">
                         <i class="fas fa-project-diagram"></i> Enhanced Timeline
                     </a>

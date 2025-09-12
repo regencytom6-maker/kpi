@@ -1,0 +1,1130 @@
+{% extends 'base.html' %}
+
+{% block title %}Store Manager Dashboard - Kampala Pharmaceutical Industries{% endblock %}
+
+{% block styles %}
+<style>
+    /* Inventory table styles */
+    .product-tags {
+        max-width: 200px;
+        overflow-x: hidden;
+    }
+    
+    .product-tags .badge {
+        display: inline-block;
+        margin-right: 3px;
+        margin-bottom: 3px;
+        white-space: nowrap;
+    }
+    
+    /* Detailed view styles */
+    .associated-products {
+        max-height: 200px;
+        overflow-y: auto;
+    }
+    
+    #inventoryTable th, #inventoryTable td {
+        vertical-align: middle;
+    }
+    
+    /* Section content styles */
+    .section-content {
+        display: none;
+        margin-top: 20px;
+    }
+    
+    .section-content.active {
+        display: block;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Debug Panel - Only visible in development -->
+<div id="debugPanel" class="card mb-3 bg-light">
+    <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Dashboard Debug Panel</h5>
+        <button class="btn btn-sm btn-outline-light" onclick="toggleDebugTools()">
+            <i class="fas fa-tools"></i> Toggle Tools
+        </button>
+    </div>
+    <div class="card-body" id="debugTools" style="display: none;">
+        <div class="row mb-3">
+            <div class="col-md-4 mb-2">
+                <button class="btn btn-sm btn-outline-primary w-100 test-endpoint-btn" data-url="{% url 'raw_materials:api_materials' %}">
+                    Test Inventory API
+                </button>
+            </div>
+            <div class="col-md-4 mb-2">
+                <button class="btn btn-sm btn-outline-primary w-100 test-endpoint-btn" data-url="{% url 'raw_materials:api_expiry' %}">
+                    Test Expiry API
+                </button>
+            </div>
+            <div class="col-md-4 mb-2">
+                <button class="btn btn-sm btn-outline-primary w-100 test-endpoint-btn" data-url="{% url 'raw_materials:api_materials' %}">
+                    Test Materials API
+                </button>
+            </div>
+        </div>
+        <pre id="debugOutput" class="bg-dark text-light p-3" style="max-height: 200px; overflow: auto;">Click a button above to test an endpoint...</pre>
+    </div>
+    <div class="card-footer">
+        <small class="text-muted">This panel is for development use only. It will be hidden in production.</small>
+    </div>
+</div>
+
+<div class="container-fluid mt-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2 class="text-primary mb-0">
+                        <i class="fas fa-warehouse me-2"></i>Store Manager Dashboard
+                    </h2>
+                    <p class="text-muted mb-0">Raw Material Release Management</p>
+                </div>
+                <div class="text-end">
+                    <small class="text-muted">Welcome, {{ user.get_full_name|default:user.username }}</small><br>
+                    <small class="text-success">{{ user.get_role_display }}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <a href="?filter=pending" class="text-decoration-none">
+                <div class="card bg-warning text-white">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h5 class="card-title mb-0">{{ stats.pending_phases }}</h5>
+                                <p class="card-text">Pending Releases</p>
+                            </div>
+                            <i class="fas fa-clock fa-2x opacity-75"></i>
+                        </div>
+                    </div>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-3">
+            <a href="?filter=in_progress" class="text-decoration-none">
+                <div class="card bg-info text-white">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h5 class="card-title mb-0">{{ stats.in_progress_phases }}</h5>
+                                <p class="card-text">In Progress</p>
+                            </div>
+                            <i class="fas fa-box fa-2x opacity-75"></i>
+                        </div>
+                    </div>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-3">
+            <a href="?filter=completed_today" class="text-decoration-none">
+                <div class="card bg-success text-white">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h5 class="card-title mb-0">{{ stats.completed_today }}</h5>
+                                <p class="card-text">Completed Today</p>
+                            </div>
+                            <i class="fas fa-check-circle fa-2x opacity-75"></i>
+                        </div>
+                    </div>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-3">
+            <a href="?filter=total_batches" class="text-decoration-none">
+                <div class="card bg-primary text-white">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h5 class="card-title mb-0">{{ stats.total_batches }}</h5>
+                                <p class="card-text">Total Batches</p>
+                            </div>
+                            <i class="fas fa-clipboard-check fa-2x opacity-75"></i>
+                        </div>
+                    </div>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Sidebar -->
+        <div class="col-md-3">
+            <!-- Material Status Card -->
+            <div class="card mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-boxes me-2"></i>Material Status</h5>
+                </div>
+                <div class="list-group list-group-flush">
+                    <a href="?section=pending_qc" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                        <div>
+                            <i class="fas fa-flask me-2 text-secondary"></i>Pending QC
+                        </div>
+                        <span class="badge bg-secondary rounded-pill">{{ stats.pending_qc_count }}</span>
+                    </a>
+                    <a href="?section=approved" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                        <div>
+                            <i class="fas fa-check-double me-2 text-success"></i>Approved Batches
+                        </div>
+                        <span class="badge bg-success rounded-pill">{{ stats.approved_count }}</span>
+                    </a>
+                    <a href="?section=dispensing" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                        <div>
+                            <i class="fas fa-weight me-2 text-info"></i>Pending Dispensing
+                        </div>
+                        <span class="badge bg-info rounded-pill">{{ pending_dispensing }}</span>
+                    </a>
+                </div>
+            </div>
+            
+            <!-- Quick Filters -->
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-filter me-2"></i>Quick Filters</h5>
+                </div>
+                <div class="list-group list-group-flush">
+                    <a href="?filter=pending" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                        <div>
+                            <i class="fas fa-clock me-2 text-warning"></i>Pending Releases
+                        </div>
+                        <span class="badge bg-warning rounded-pill">{{ stats.pending_phases }}</span>
+                    </a>
+                    <a href="?filter=in_progress" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                        <div>
+                            <i class="fas fa-box me-2 text-info"></i>In Progress
+                        </div>
+                        <span class="badge bg-info rounded-pill">{{ stats.in_progress_phases }}</span>
+                    </a>
+                    <a href="?filter=completed_today" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                        <div>
+                            <i class="fas fa-check-circle me-2 text-success"></i>Completed Today
+                        </div>
+                        <span class="badge bg-success rounded-pill">{{ stats.completed_today }}</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Main Content -->
+        <div class="col-md-9">
+            <!-- Section content containers -->
+            <div id="mainContent">
+                <!-- Default Content (Tabs) -->
+                <div id="defaultContent">
+                    <!-- Navigation Tabs -->
+                    <ul class="nav nav-tabs mb-4" id="storeTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="releases-tab" data-bs-toggle="tab" data-bs-target="#releases" type="button" role="tab" aria-controls="releases" aria-selected="true">
+                                <i class="fas fa-box-open me-2"></i>Material Releases
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="inventory-tab" data-bs-toggle="tab" data-bs-target="#inventory" type="button" role="tab" aria-controls="inventory" aria-selected="false">
+                                <i class="fas fa-boxes me-2"></i>Inventory
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="expiry-tab" data-bs-toggle="tab" data-bs-target="#expiry" type="button" role="tab" aria-controls="expiry" aria-selected="false">
+                                <i class="fas fa-calendar-times me-2"></i>Expiry Tracking
+                            </button>
+                        </li>
+                    </ul>
+                    
+                    <!-- Tab Content -->
+                    <div class="tab-content" id="storeTabsContent">
+                        <!-- Material Releases Tab -->
+                        <div class="tab-pane fade show active" id="releases" role="tabpanel" aria-labelledby="releases-tab">
+                            <div class="card">
+                                <div class="card-header bg-primary text-white">
+                                    <h5 class="mb-0">
+                                        <i class="fas fa-warehouse me-2"></i>Raw Material Release Queue
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                {% if my_phases %}
+                                    <div class="table-responsive">
+                                        <table class="table table-striped table-hover">
+                                            <thead class="table-dark">
+                                                <tr>
+                                                    <th>BMR Number</th>
+                                                    <th>Product</th>
+                                                    <th>Batch Size</th>
+                                                    <th>Priority</th>
+                                                    <th>Created</th>
+                                                    <th>Status</th>
+                                                    <th>Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for phase in my_phases %}
+                                                <tr>
+                                                    <td><strong class="text-primary">{{ phase.bmr.bmr_number }}</strong></td>
+                                                    <td>{{ phase.bmr.product.product_name }}</td>
+                                                    <td>{{ phase.bmr.batch_size|floatformat:0 }} {{ phase.bmr.product.unit_of_measure }}</td>
+                                                    <td>
+                                                        {% if phase.bmr.created_date|timesince|slice:":1" == "0" %}
+                                                            <span class="badge bg-danger">Urgent</span>
+                                                        {% elif phase.bmr.created_date|timesince|slice:":1" == "1" %}
+                                                            <span class="badge bg-warning">High</span>
+                                                        {% else %}
+                                                            <span class="badge bg-success">Normal</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>{{ phase.bmr.created_date|date:"M d, H:i" }}</td>
+                                                    <td>
+                                                        {% if phase.status == 'pending' %}
+                                                            <span class="badge bg-warning">Pending</span>
+                                                        {% elif phase.status == 'in_progress' %}
+                                                            <span class="badge bg-info">In Progress</span>
+                                                        {% else %}
+                                                            <span class="badge bg-success">{{ phase.status|title }}</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>
+                                                        <div class="btn-group btn-group-sm">
+                                                            <a href="{% url 'bmr:detail' phase.bmr.pk %}" 
+                                                              class="btn btn-outline-primary btn-sm">
+                                                                <i class="fas fa-eye"></i> View
+                                                            </a>
+                                                            {% if phase.status == 'pending' %}
+                                                            <button class="btn btn-outline-success btn-sm"
+                                                                    onclick="startRelease('{{ phase.bmr.pk }}', '{{ phase.bmr.bmr_number }}')">
+                                                                <i class="fas fa-play"></i> Start
+                                                            </button>
+                                                            {% elif phase.status == 'in_progress' %}
+                                                            <button class="btn btn-outline-warning btn-sm"
+                                                                    onclick="completeRelease('{{ phase.bmr.pk }}', '{{ phase.bmr.bmr_number }}')">
+                                                                <i class="fas fa-check"></i> Complete
+                                                            </button>
+                                                            {% endif %}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                {% else %}
+                                    <div class="text-center py-5">
+                                        <i class="fas fa-warehouse fa-3x text-success mb-3"></i>
+                                        <h5 class="text-muted">No Pending Raw Material Releases</h5>
+                                        <p class="text-muted">All raw material release requests are up to date.</p>
+                                    </div>
+                                {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Inventory Tab -->
+                        <div class="tab-pane fade" id="inventory" role="tabpanel" aria-labelledby="inventory-tab">
+                            <div class="card">
+                                <div class="card-header bg-info text-white">
+                                    <h5 class="mb-0">
+                                        <i class="fas fa-boxes me-2"></i>Raw Materials Inventory
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    <!-- Inventory Table Container -->
+                                    <div id="inventoryTableContainer">
+                                        <div class="text-center py-4">
+                                            <div class="spinner-border text-primary" role="status">
+                                                <span class="visually-hidden">Loading...</span>
+                                            </div>
+                                            <p class="mt-2">Loading inventory data...</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Expiry Tracking Tab -->
+                        <div class="tab-pane fade" id="expiry" role="tabpanel" aria-labelledby="expiry-tab">
+                            <div class="card">
+                                <div class="card-header bg-danger text-white">
+                                    <h5 class="mb-0">
+                                        <i class="fas fa-calendar-times me-2"></i>Expiry Tracking
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    <div id="expiryTableContainer">
+                                        <div class="text-center py-4">
+                                            <div class="spinner-border text-primary" role="status">
+                                                <span class="visually-hidden">Loading...</span>
+                                            </div>
+                                            <p class="mt-2">Loading expiry data...</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Section Specific Content -->
+                <div id="pendingQCSection" class="section-content"></div>
+                <div id="approvedSection" class="section-content"></div>
+                <div id="dispensingSection" class="section-content"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // When the page loads
+    $(document).ready(function() {
+        // Load section from URL parameters
+        loadSectionFromUrl();
+        
+        // Set up debug buttons
+        $('.test-endpoint-btn').on('click', function() {
+            var url = $(this).data('url');
+            testEndpoint(url);
+        });
+        
+        // Load initial data for inventory and expiry tabs
+        loadInventoryData();
+        loadExpiryData();
+    });
+    
+    // Function to load section data based on URL parameters
+    function loadSectionFromUrl() {
+        var urlParams = new URLSearchParams(window.location.search);
+        var section = urlParams.get('section');
+        var filter = urlParams.get('filter');
+        
+        console.log("URL parameters - Section:", section, "Filter:", filter);
+        
+        // Hide all content sections and show default content
+        $('#pendingQCSection, #approvedSection, #dispensingSection').removeClass('active');
+        $('#defaultContent').show();
+        
+        // If no section or filter is specified, keep the default view
+        if (!section && !filter) {
+            console.log("No section or filter specified, showing default content");
+            return;
+        }
+        
+        // Handle section parameter
+        if (section) {
+            // Hide default content
+            $('#defaultContent').hide();
+            
+            if (section === 'pending_qc') {
+                $('#pendingQCSection').addClass('active');
+                loadPendingQCSection();
+            } else if (section === 'approved') {
+                $('#approvedSection').addClass('active');
+                loadApprovedSection();
+            } else if (section === 'dispensing') {
+                $('#dispensingSection').addClass('active');
+                loadDispensingSection();
+            } else {
+                // If an invalid section is specified, show default content
+                $('#defaultContent').show();
+            }
+        }
+        
+        // Handle filter parameter (we keep the default tab view for filters)
+        if (filter && !section) {
+            // Filters work within the default view
+            $('#defaultContent').show();
+            
+            // TODO: Implement filter functionality if needed
+        }
+    }
+    
+    // Load Pending QC section
+    function loadPendingQCSection() {
+        console.log("Loading Pending QC section");
+        
+        // Show loading indicator
+        $('#pendingQCSection').html(`
+            <div class="d-flex justify-content-center my-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="ms-3">Loading pending QC materials...</p>
+            </div>
+        `);
+        
+        // Fetch pending QC data from API
+        $.ajax({
+            type: 'GET',
+            url: '{% url 'raw_materials:api_materials' %}?status=pending_qc',
+            dataType: 'json',
+            success: function(data) {
+                console.log("Pending QC data received:", data);
+                displayPendingQCData(data);
+            },
+            error: function(xhr, status, error) {
+                console.error("Error loading pending QC data:", error);
+                $('#pendingQCSection').html(`
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-circle me-2"></i>
+                        Error loading pending QC materials: ${error}
+                        <button class="btn btn-sm btn-outline-danger ms-3" onclick="loadPendingQCSection()">
+                            <i class="fas fa-sync-alt me-1"></i>Try Again
+                        </button>
+                    </div>
+                `);
+            }
+        });
+    }
+    
+    // Display pending QC data
+    function displayPendingQCData(data) {
+        console.log("Displaying pending QC data:", data);
+        
+        // Check what format the data is in
+        let batches = [];
+        if (data.batches && data.batches.length > 0) {
+            batches = data.batches;
+            console.log("Found batches array in data.batches");
+        } else if (data.materials && data.materials.length > 0) {
+            // Extract batches with pending_qc status from materials
+            data.materials.forEach(function(material) {
+                if (material.batches) {
+                    material.batches.forEach(function(batch) {
+                        if (batch.status === 'pending_qc') {
+                            // Add material info to the batch
+                            batch.material_name = material.material_name;
+                            batch.unit_of_measure = material.unit_of_measure;
+                            batches.push(batch);
+                        }
+                    });
+                }
+            });
+            console.log("Extracted pending QC batches from materials:", batches);
+        }
+        
+        var content = `
+            <div class="card">
+                <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-flask me-2"></i>Materials Pending QC Testing</h5>
+                    <a href="{% url 'dashboards:store_dashboard' %}" class="btn btn-sm btn-outline-dark">
+                        <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                    </a>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Material</th>
+                                    <th>Batch Number</th>
+                                    <th>Date Received</th>
+                                    <th>Quantity</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+        `;
+        
+        if (batches.length > 0) {
+            batches.forEach(function(batch) {
+                content += `
+                    <tr>
+                        <td>${batch.material_name || 'Unknown Material'}</td>
+                        <td>${batch.batch_number}</td>
+                        <td>${batch.date_received || batch.received_date || 'Unknown'}</td>
+                        <td>${batch.quantity_received || batch.quantity} ${batch.unit_of_measure || ''}</td>
+                        <td><span class="badge bg-warning text-dark">Pending QC</span></td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary" onclick="viewBatchDetails(${batch.id})">
+                                <i class="fas fa-eye me-1"></i>Details
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+        } else {
+            content += `
+                <tr>
+                    <td colspan="6" class="text-center py-3">
+                        <i class="fas fa-check-circle text-success me-2"></i>
+                        No materials currently pending QC testing
+                    </td>
+                </tr>
+            `;
+        }
+        
+        content += `
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        $('#pendingQCSection').html(content);
+    }
+    
+    // Load Approved Batches section
+    function loadApprovedSection() {
+        console.log("Loading Approved Batches section");
+        
+        // Show loading indicator
+        $('#approvedSection').html(`
+            <div class="d-flex justify-content-center my-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="ms-3">Loading approved materials...</p>
+            </div>
+        `);
+        
+        // Fetch approved batches data from API
+        $.ajax({
+            type: 'GET',
+            url: '{% url 'raw_materials:api_materials' %}?status=approved',
+            dataType: 'json',
+            success: function(data) {
+                console.log("Approved batches data:", data);
+                displayApprovedBatchesData(data);
+            },
+            error: function(xhr, status, error) {
+                console.error("Error loading approved batches data:", error);
+                $('#approvedSection').html(`
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-circle me-2"></i>
+                        Error loading approved materials: ${error}
+                        <button class="btn btn-sm btn-outline-danger ms-3" onclick="loadApprovedSection()">
+                            <i class="fas fa-sync-alt me-1"></i>Try Again
+                        </button>
+                    </div>
+                `);
+            }
+        });
+    }
+    
+    // Display approved batches data
+    function displayApprovedBatchesData(data) {
+        console.log("Displaying approved batches data:", data);
+        
+        // Check what format the data is in
+        let approvedBatches = [];
+        if (data.batches && data.batches.length > 0) {
+            approvedBatches = data.batches;
+            console.log("Found batches array in data.batches");
+        } else if (data.materials && data.materials.length > 0) {
+            // Extract batches with approved status from materials
+            data.materials.forEach(function(material) {
+                if (material.batches) {
+                    material.batches.forEach(function(batch) {
+                        if (batch.status === 'approved') {
+                            // Add material info to the batch
+                            batch.material_name = material.material_name;
+                            batch.unit_of_measure = material.unit_of_measure;
+                            approvedBatches.push(batch);
+                        }
+                    });
+                }
+            });
+            console.log("Extracted approved batches from materials:", approvedBatches);
+        }
+        
+        var content = `
+            <div class="card">
+                <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-check-double me-2"></i>Approved Materials Ready for Use</h5>
+                    <a href="{% url 'dashboards:store_dashboard' %}" class="btn btn-sm btn-outline-light">
+                        <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                    </a>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Material</th>
+                                    <th>Batch Number</th>
+                                    <th>Date Approved</th>
+                                    <th>Available Quantity</th>
+                                    <th>Expiry Date</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+        `;
+        
+        if (approvedBatches.length > 0) {
+            approvedBatches.forEach(function(batch) {
+                content += `
+                    <tr>
+                        <td>${batch.material_name || 'Unknown Material'}</td>
+                        <td>${batch.batch_number}</td>
+                        <td>${batch.approved_date || 'Unknown'}</td>
+                        <td>${batch.quantity_remaining || batch.quantity} ${batch.unit_of_measure || ''}</td>
+                        <td>${batch.expiry_date || 'Not specified'}</td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary" onclick="viewBatchDetails(${batch.id})">
+                                <i class="fas fa-eye me-1"></i>Details
+                            </button>
+                            <button class="btn btn-sm btn-outline-success" onclick="dispenseMaterial(${batch.id})">
+                                <i class="fas fa-dolly-flatbed me-1"></i>Dispense
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+        } else {
+            content += `
+                <tr>
+                    <td colspan="6" class="text-center py-3">
+                        <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+                        No approved material batches available
+                    </td>
+                </tr>
+            `;
+        }
+        
+        content += `
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        $('#approvedSection').html(content);
+    }
+    
+    // Load Pending Dispensing section
+    function loadDispensingSection() {
+        console.log("Loading Pending Dispensing section");
+        
+        // Show loading indicator
+        $('#dispensingSection').html(`
+            <div class="d-flex justify-content-center my-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="ms-3">Loading pending dispensing data...</p>
+            </div>
+        `);
+        
+        // Fetch pending dispensing data from API
+        $.ajax({
+            type: 'GET',
+            url: '{% url 'raw_materials:api_materials' %}?dispensing=pending',
+            dataType: 'json',
+            success: function(data) {
+                console.log("Pending dispensing data:", data);
+                displayPendingDispensingData(data);
+            },
+            error: function(xhr, status, error) {
+                console.error("Error loading pending dispensing data:", error);
+                $('#dispensingSection').html(`
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-circle me-2"></i>
+                        Error loading pending dispensing data: ${error}
+                        <button class="btn btn-sm btn-outline-danger ms-3" onclick="loadDispensingSection()">
+                            <i class="fas fa-sync-alt me-1"></i>Try Again
+                        </button>
+                    </div>
+                `);
+            }
+        });
+    }
+    
+    // Display pending dispensing data
+    function displayPendingDispensingData(data) {
+        console.log("Displaying pending dispensing data:", data);
+        
+        var content = `
+            <div class="card">
+                <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-weight me-2"></i>Pending Material Dispensing</h5>
+                    <a href="{% url 'dashboards:store_dashboard' %}" class="btn btn-sm btn-outline-light">
+                        <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                    </a>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead>
+                                <tr>
+                                    <th>BMR Number</th>
+                                    <th>Product</th>
+                                    <th>Requested Date</th>
+                                    <th>Needed By</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+        `;
+        
+        // Handle different data formats that might be returned
+        let dispensingRequests = [];
+        if (data.dispensing_requests && data.dispensing_requests.length > 0) {
+            dispensingRequests = data.dispensing_requests;
+        } else if (data.materials && data.materials.length > 0) {
+            // If we have a materials-based response with dispensing data
+            // This is a placeholder implementation - adjust based on your API structure
+            console.log("Parsing materials data for dispensing info");
+        }
+        
+        if (dispensingRequests.length > 0) {
+            dispensingRequests.forEach(function(request) {
+                content += `
+                    <tr>
+                        <td>${request.bmr_number || 'N/A'}</td>
+                        <td>${request.product_name || 'N/A'}</td>
+                        <td>${request.requested_date || 'N/A'}</td>
+                        <td>${request.needed_by || 'Not specified'}</td>
+                        <td><span class="badge bg-info">Pending</span></td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary" onclick="viewDispensingRequest(${request.id})">
+                                <i class="fas fa-eye me-1"></i>View
+                            </button>
+                            <button class="btn btn-sm btn-outline-success" onclick="startDispensing(${request.id})">
+                                <i class="fas fa-play me-1"></i>Start
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+        } else {
+            content += `
+                <tr>
+                    <td colspan="6" class="text-center py-3">
+                        <i class="fas fa-check-circle text-success me-2"></i>
+                        No pending material dispensing requests
+                    </td>
+                </tr>
+            `;
+        }
+        
+        content += `
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        $('#dispensingSection').html(content);
+    }
+    
+    // Load inventory data
+    function loadInventoryData() {
+        console.log("Loading inventory data...");
+        
+        $.ajax({
+            type: 'GET',
+            url: '{% url 'raw_materials:api_materials' %}',
+            dataType: 'json',
+            success: function(data) {
+                console.log("Inventory data received:", data);
+                displayInventoryData(data);
+            },
+            error: function(xhr, status, error) {
+                console.error("Error loading inventory data:", error);
+                $('#inventoryTableContainer').html(`
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-circle me-2"></i>
+                        Error loading inventory data: ${error}
+                        <button class="btn btn-sm btn-outline-danger ms-3" onclick="loadInventoryData()">
+                            <i class="fas fa-sync-alt me-1"></i>Try Again
+                        </button>
+                    </div>
+                `);
+            }
+        });
+    }
+    
+    // Display inventory data
+    function displayInventoryData(data) {
+        var inventoryHtml = `
+            <div class="table-responsive">
+                <table class="table table-striped table-hover" id="inventoryTable">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Material Code</th>
+                            <th>Material Name</th>
+                            <th>Type</th>
+                            <th>Quantity</th>
+                            <th>Units</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+        
+        if (data.materials && data.materials.length > 0) {
+            data.materials.forEach(function(material) {
+                var statusClass = 'bg-success';
+                var statusText = 'In Stock';
+                
+                if (material.status === 'low_stock') {
+                    statusClass = 'bg-warning';
+                    statusText = 'Low Stock';
+                } else if (material.status === 'out_of_stock') {
+                    statusClass = 'bg-danger';
+                    statusText = 'Out of Stock';
+                }
+                
+                inventoryHtml += `
+                    <tr>
+                        <td>${material.material_code}</td>
+                        <td>${material.material_name}</td>
+                        <td>${material.category_display}</td>
+                        <td>${parseFloat(material.current_stock).toFixed(2)}</td>
+                        <td>${material.unit_of_measure}</td>
+                        <td><span class="badge ${statusClass}">${statusText}</span></td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary" onclick="viewMaterialDetails(${material.id})">
+                                <i class="fas fa-info-circle"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+        } else {
+            inventoryHtml += `
+                <tr>
+                    <td colspan="7" class="text-center py-3">
+                        <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+                        No inventory data available
+                    </td>
+                </tr>
+            `;
+        }
+        
+        inventoryHtml += `
+                    </tbody>
+                </table>
+            </div>
+        `;
+        
+        $('#inventoryTableContainer').html(inventoryHtml);
+    }
+    
+    // Load expiry data
+    function loadExpiryData() {
+        console.log("Loading expiry data...");
+        
+        $.ajax({
+            type: 'GET',
+            url: '{% url 'raw_materials:api_expiry' %}',
+            dataType: 'json',
+            success: function(data) {
+                console.log("Expiry data received:", data);
+                displayExpiryData(data);
+            },
+            error: function(xhr, status, error) {
+                console.error("Error loading expiry data:", error);
+                $('#expiryTableContainer').html(`
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-circle me-2"></i>
+                        Error loading expiry data: ${error}
+                        <button class="btn btn-sm btn-outline-danger ms-3" onclick="loadExpiryData()">
+                            <i class="fas fa-sync-alt me-1"></i>Try Again
+                        </button>
+                    </div>
+                `);
+            }
+        });
+    }
+    
+    // Display expiry data
+    function displayExpiryData(data) {
+        var expiryHtml = `
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th>Material</th>
+                            <th>Batch Number</th>
+                            <th>Quantity Left</th>
+                            <th>Expiry Date</th>
+                            <th>Days Left</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+        
+        let expiryItems = [];
+        if (data.expiry && data.expiry.length > 0) {
+            expiryItems = data.expiry;
+        } else if (data.batches && data.batches.length > 0) {
+            expiryItems = data.batches;
+        }
+        
+        if (expiryItems.length > 0) {
+            expiryItems.forEach(function(item) {
+                let materialName = item.material ? item.material.material_name : 'Unknown Material';
+                let daysLeft = item.days_remaining || item.days_left || 0;
+                
+                let statusClass = 'bg-success';
+                let statusText = 'OK';
+                
+                if (daysLeft <= 30) {
+                    statusClass = 'bg-danger';
+                    statusText = 'Critical';
+                } else if (daysLeft <= 90) {
+                    statusClass = 'bg-warning';
+                    statusText = 'Expiring Soon';
+                }
+                
+                expiryHtml += `
+                    <tr>
+                        <td>${materialName}</td>
+                        <td>${item.batch_number}</td>
+                        <td>${item.quantity_remaining || 'N/A'}</td>
+                        <td>${item.expiry_date}</td>
+                        <td>${daysLeft}</td>
+                        <td><span class="badge ${statusClass}">${statusText}</span></td>
+                    </tr>
+                `;
+            });
+        } else {
+            expiryHtml += `
+                <tr>
+                    <td colspan="6" class="text-center py-3">
+                        <i class="fas fa-check-circle text-success me-2"></i>
+                        No materials expiring soon
+                    </td>
+                </tr>
+            `;
+        }
+        
+        expiryHtml += `
+                    </tbody>
+                </table>
+            </div>
+        `;
+        
+        $('#expiryTableContainer').html(expiryHtml);
+    }
+    
+    // Helper functions for common material management tasks
+    
+    // View details about a specific material
+    function viewMaterialDetails(materialId) {
+        console.log("Viewing details for material ID:", materialId);
+        // Implementation will depend on your application needs
+        alert("This feature is coming soon: View material details");
+    }
+    
+    // View details about a specific batch
+    function viewBatchDetails(batchId) {
+        console.log("Viewing details for batch ID:", batchId);
+        // Implementation will depend on your application needs
+        alert("This feature is coming soon: View batch details");
+    }
+    
+    // Function to dispense material
+    function dispenseMaterial(batchId) {
+        console.log("Dispensing material from batch ID:", batchId);
+        // Implementation will depend on your application needs
+        alert("This feature is coming soon: Dispense material");
+    }
+    
+    // Function to view dispensing request
+    function viewDispensingRequest(requestId) {
+        console.log("Viewing dispensing request ID:", requestId);
+        // Implementation will depend on your application needs
+        alert("This feature is coming soon: View dispensing request");
+    }
+    
+    // Function to start dispensing process
+    function startDispensing(requestId) {
+        console.log("Starting dispensing for request ID:", requestId);
+        // Implementation will depend on your application needs
+        alert("This feature is coming soon: Start dispensing process");
+    }
+    
+    // Start a material release
+    function startRelease(bmrId, bmrNumber) {
+        if(confirm(`Start raw material release for BMR #${bmrNumber}?`)) {
+            $.ajax({
+                type: 'POST',
+                url: "{% url 'bmr:start_phase' 0 'material_release' %}".replace('0', bmrId),
+                data: {
+                    'action': 'start',
+                    'bmr_id': bmrId,
+                    'csrfmiddlewaretoken': '{{ csrf_token }}'
+                },
+                success: function(response) {
+                    if(response.status === 'success') {
+                        location.reload();
+                    } else {
+                        alert('Error: ' + response.message);
+                    }
+                }
+            });
+        }
+    }
+    
+    // Complete a material release
+    function completeRelease(bmrId, bmrNumber) {
+        if(confirm(`Complete raw material release for BMR #${bmrNumber}?`)) {
+            $.ajax({
+                type: 'POST',
+                url: "{% url 'bmr:complete_phase' 0 'material_release' %}".replace('0', bmrId),
+                data: {
+                    'action': 'complete',
+                    'bmr_id': bmrId,
+                    'csrfmiddlewaretoken': '{{ csrf_token }}'
+                },
+                success: function(response) {
+                    if(response.status === 'success') {
+                        location.reload();
+                    } else {
+                        alert('Error: ' + response.message);
+                    }
+                }
+            });
+        }
+    }
+    
+    // Debug panel functions
+    function toggleDebugTools() {
+        var debugTools = document.getElementById('debugTools');
+        if (debugTools.style.display === 'none') {
+            debugTools.style.display = 'block';
+        } else {
+            debugTools.style.display = 'none';
+        }
+    }
+    
+    // Function to test API endpoints
+    function testEndpoint(url) {
+        var output = document.getElementById('debugOutput');
+        output.innerHTML = 'Testing endpoint: ' + url + '...';
+        
+        fetch(url)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok: ' + response.status);
+                }
+                return response.json();
+            })
+            .then(data => {
+                output.innerHTML = JSON.stringify(data, null, 2);
+                console.log('API Response:', data);
+            })
+            .catch(error => {
+                output.innerHTML = 'Error: ' + error.message;
+                console.error('API Error:', error);
+            });
+    }
+</script>
+{% endblock %}
