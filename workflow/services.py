@@ -340,8 +340,20 @@ class WorkflowService:
                         )
                         print(f"Created new {rollback_to_phase} phase for BMR {bmr.bmr_number}")
                     else:
-                        print(f"Error: Cannot find a template for phase '{rollback_to_phase}'")
-                        return False
+                        # If we can't find an example phase execution, try to get the phase directly
+                        phase = ProductionPhase.objects.filter(phase_name=rollback_to_phase).first()
+                        if phase:
+                            # Create the missing phase execution
+                            rollback_phase = BatchPhaseExecution.objects.create(
+                                bmr=bmr,
+                                phase=phase,
+                                status='pending',
+                                operator_comments=f'Auto-created for reprocessing after {failed_phase_name} failure'
+                            )
+                            print(f"Created new {rollback_to_phase} phase for BMR {bmr.bmr_number} using ProductionPhase")
+                        else:
+                            print(f"Error: Cannot find phase definition for '{rollback_to_phase}'")
+                            return False
                 except Exception as e:
                     print(f"Error creating phase: {e}")
                     return False
