@@ -1,6 +1,6 @@
 from django.utils import timezone
 from bmr.models import BMR
-from .models import ProductionPhase, BatchPhaseExecution, Phase
+from .models import ProductionPhase, BatchPhaseExecution
 
 class WorkflowService:
     """Service to manage workflow progression and phase automation"""
@@ -323,19 +323,27 @@ class WorkflowService:
                 print(f"Error: Rollback phase '{rollback_to_phase}' doesn't exist for BMR {bmr.bmr_number}")
                 print("Creating the required phase...")
                 
-                # Get the phase definition
+                # Get the phase definition without directly importing the Phase model
                 try:
-                    phase_def = Phase.objects.get(phase_name=rollback_to_phase)
-                    # Create the missing phase execution
-                    rollback_phase = BatchPhaseExecution.objects.create(
-                        bmr=bmr,
-                        phase=phase_def,
-                        status='pending',
-                        operator_comments=f'Auto-created for reprocessing after {failed_phase_name} failure'
-                    )
-                    print(f"Created new {rollback_to_phase} phase for BMR {bmr.bmr_number}")
-                except Phase.DoesNotExist:
-                    print(f"Error: Phase definition for '{rollback_to_phase}' not found")
+                    # Use filter to find the Phase object from existing BatchPhaseExecution objects
+                    example_phase = BatchPhaseExecution.objects.filter(
+                        phase__phase_name=rollback_to_phase
+                    ).first()
+                    
+                    if example_phase:
+                        # Create the missing phase execution
+                        rollback_phase = BatchPhaseExecution.objects.create(
+                            bmr=bmr,
+                            phase=example_phase.phase,
+                            status='pending',
+                            operator_comments=f'Auto-created for reprocessing after {failed_phase_name} failure'
+                        )
+                        print(f"Created new {rollback_to_phase} phase for BMR {bmr.bmr_number}")
+                    else:
+                        print(f"Error: Cannot find a template for phase '{rollback_to_phase}'")
+                        return False
+                except Exception as e:
+                    print(f"Error creating phase: {e}")
                     return False
             
             print(f"Found rollback phase: {rollback_phase.phase.phase_name} (ID: {rollback_phase.id})")
