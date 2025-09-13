@@ -697,22 +697,105 @@ class WorkflowService:
                 
                 if failed_qc:
                     print(f"\n*** REPROCESSING DETECTED: Completing granulation for BMR {bmr.bmr_number} after QC failure ***")
-                    # Special handling - explicitly activate blending
+                    
+                    # Ensure all prerequisite phases for blending are marked as completed
+                    prerequisite_phases = BatchPhaseExecution.objects.filter(
+                        bmr=bmr,
+                        phase__phase_order__lt=current_execution.phase.phase_order
+                    )
+                    for prereq in prerequisite_phases:
+                        if prereq.status not in ['completed', 'skipped']:
+                            print(f"Marking prerequisite phase {prereq.phase.phase_name} as completed for BMR {bmr.bmr_number}")
+                            prereq.status = 'completed'
+                            prereq.completed_date = timezone.now()
+                            prereq.save()
+                    
+                    # Get or create blending phase
                     blending_phase = BatchPhaseExecution.objects.filter(
                         bmr=bmr,
                         phase__phase_name='blending'
                     ).first()
                     
-                    if blending_phase:
-                        print(f"Activating blending phase for reprocessing: {blending_phase.id}, current status: {blending_phase.status}")
-                        blending_phase.status = 'pending'
-                        blending_phase.save()
-                        print(f"Blending phase activated for BMR {bmr.bmr_number}")
-                        return True  # Important: Return here to prevent standard logic from running
+                    if not blending_phase:
+                        # Create blending phase if it doesn't exist
+                        try:
+                            blending_def = ProductionPhase.objects.get(phase_name='blending')
+                            blending_phase = BatchPhaseExecution.objects.create(
+                                bmr=bmr,
+                                phase=blending_def,
+                                status='pending',
+                                operator_comments='Auto-created for reprocessing after QC failure'
+                            )
+                            print(f"Created new blending phase for BMR {bmr.bmr_number}")
+                        except Exception as e:
+                            print(f"Error creating blending phase: {e}")
+                            return False
+                    
+                    # Activate blending phase
+                    print(f"Activating blending phase for reprocessing: {blending_phase.id}, current status: {blending_phase.status}")
+                    blending_phase.status = 'pending'
+                    blending_phase.started_by = None
+                    blending_phase.started_date = None
+                    blending_phase.completed_by = None
+                    blending_phase.completed_date = None
+                    blending_phase.save()
+                    print(f"Blending phase activated for BMR {bmr.bmr_number}")
+                    
+                    # Ensure subsequent phases exist and are in the correct state
+                    compression_phase = BatchPhaseExecution.objects.filter(
+                        bmr=bmr,
+                        phase__phase_name='compression'
+                    ).first()
+                    
+                    if not compression_phase:
+                        # Create compression phase if it doesn't exist
+                        try:
+                            compression_def = ProductionPhase.objects.get(phase_name='compression')
+                            compression_phase = BatchPhaseExecution.objects.create(
+                                bmr=bmr,
+                                phase=compression_def,
+                                status='not_ready',
+                                operator_comments='Auto-created for reprocessing workflow'
+                            )
+                            print(f"Created new compression phase for BMR {bmr.bmr_number}")
+                        except Exception as e:
+                            print(f"Error creating compression phase: {e}")
                     else:
-                        print(f"WARNING: No blending phase found for BMR {bmr.bmr_number}")
-                        print(f"Activated blending phase after granulation reprocessing")
-                        return True
+                        # Reset compression phase to not_ready
+                        compression_phase.status = 'not_ready'
+                        compression_phase.started_by = None
+                        compression_phase.started_date = None
+                        compression_phase.completed_by = None
+                        compression_phase.completed_date = None
+                        compression_phase.save()
+                        print(f"Reset compression phase to not_ready for BMR {bmr.bmr_number}")
+                    
+                    # Create or update post_compression_qc phase if needed (separate from failed one)
+                    new_qc_phases = BatchPhaseExecution.objects.filter(
+                        bmr=bmr,
+                        phase__phase_name='post_compression_qc',
+                        status__in=['pending', 'not_ready']
+                    )
+                    
+                    if not new_qc_phases.exists():
+                        # Create a new post_compression_qc phase
+                        try:
+                            qc_def = ProductionPhase.objects.get(phase_name='post_compression_qc')
+                            new_qc_phase = BatchPhaseExecution.objects.create(
+                                bmr=bmr,
+                                phase=qc_def,
+                                status='not_ready',
+                                operator_comments='Auto-created for reprocessing workflow'
+                            )
+                            print(f"Created new post_compression_qc phase for BMR {bmr.bmr_number}")
+                        except Exception as e:
+                            print(f"Error creating post_compression_qc phase: {e}")
+                    
+                    return True  # Important: Return here to prevent standard logic from running
+                    
+                else:
+                    print(f"Normal granulation completion (not reprocessing) for BMR {bmr.bmr_number}")
+                    # Let standard logic handle normal case
             
             # Special handling for blending after reprocessing 
             if current_execution.phase.phase_name == 'blending':
@@ -737,21 +820,71 @@ class WorkflowService:
                 # For tablets, activate compression next
                 if failed_qc and bmr.product.product_type in ['tablet', 'tablet_normal', 'tablet_2']:
                     print(f"\n*** REPROCESSING PATH: Completing blending for tablet BMR {bmr.bmr_number} after QC failure ***")
-                    # Special handling - explicitly activate compression
+                    
+                    # Ensure all prerequisite phases for compression are completed
+                    prerequisite_phases = BatchPhaseExecution.objects.filter(
+                        bmr=bmr,
+                        phase__phase_order__lt=current_execution.phase.phase_order
+                    )
+                    for prereq in prerequisite_phases:
+                        if prereq.status not in ['completed', 'skipped']:
+                            print(f"Marking prerequisite phase {prereq.phase.phase_name} as completed for BMR {bmr.bmr_number}")
+                            prereq.status = 'completed'
+                            prereq.completed_date = timezone.now()
+                            prereq.save()
+                    
+                    # Get or create compression phase
                     compression_phase = BatchPhaseExecution.objects.filter(
                         bmr=bmr,
                         phase__phase_name='compression'
                     ).first()
                     
-                    if compression_phase:
-                        print(f"Activating compression phase for reprocessing: {compression_phase.id}, current status: {compression_phase.status}")
-                        compression_phase.status = 'pending'
-                        compression_phase.save()
-                        print(f"Compression phase activated for BMR {bmr.bmr_number} after reprocessing")
-                        return True  # Important: Return here to prevent standard logic from running
-                    else:
-                        print(f"WARNING: No compression phase found for BMR {bmr.bmr_number}")
-                        return False
+                    if not compression_phase:
+                        # Create compression phase if it doesn't exist
+                        try:
+                            compression_def = ProductionPhase.objects.get(phase_name='compression')
+                            compression_phase = BatchPhaseExecution.objects.create(
+                                bmr=bmr,
+                                phase=compression_def,
+                                status='pending',
+                                operator_comments='Auto-created for reprocessing after QC failure'
+                            )
+                            print(f"Created new compression phase for BMR {bmr.bmr_number}")
+                        except Exception as e:
+                            print(f"Error creating compression phase: {e}")
+                            return False
+                    
+                    print(f"Activating compression phase for reprocessing: {compression_phase.id}, current status: {compression_phase.status}")
+                    compression_phase.status = 'pending'
+                    compression_phase.started_by = None
+                    compression_phase.started_date = None
+                    compression_phase.completed_by = None
+                    compression_phase.completed_date = None
+                    compression_phase.save()
+                    print(f"Compression phase activated for BMR {bmr.bmr_number} after reprocessing")
+                    
+                    # Ensure post_compression_qc phase exists and is in the correct state
+                    post_comp_qc_phases = BatchPhaseExecution.objects.filter(
+                        bmr=bmr,
+                        phase__phase_name='post_compression_qc',
+                        status__in=['pending', 'not_ready']
+                    )
+                    
+                    if not post_comp_qc_phases.exists():
+                        # Create a new post_compression_qc phase 
+                        try:
+                            qc_def = ProductionPhase.objects.get(phase_name='post_compression_qc')
+                            new_qc_phase = BatchPhaseExecution.objects.create(
+                                bmr=bmr,
+                                phase=qc_def,
+                                status='not_ready',
+                                operator_comments='Auto-created for reprocessing workflow'
+                            )
+                            print(f"Created new post_compression_qc phase for BMR {bmr.bmr_number}")
+                        except Exception as e:
+                            print(f"Error creating post_compression_qc phase: {e}")
+                    
+                    return True  # Important: Return here to prevent standard logic from running
                 
                 # For capsules, activate post_blending_qc next
                 elif failed_qc and bmr.product.product_type == 'capsule':
@@ -810,21 +943,54 @@ class WorkflowService:
                 
                 if failed_qc and bmr.product.product_type == 'tablet':
                     print(f"\n*** REPROCESSING PATH: Completing compression for BMR {bmr.bmr_number} after QC failure ***")
-                    # Special handling - explicitly activate post_compression_qc
+                    
+                    # Ensure all prerequisite phases for post_compression_qc are completed
+                    prerequisite_phases = BatchPhaseExecution.objects.filter(
+                        bmr=bmr,
+                        phase__phase_order__lt=current_execution.phase.phase_order
+                    )
+                    for prereq in prerequisite_phases:
+                        if prereq.status not in ['completed', 'skipped']:
+                            print(f"Marking prerequisite phase {prereq.phase.phase_name} as completed for BMR {bmr.bmr_number}")
+                            prereq.status = 'completed'
+                            prereq.completed_date = timezone.now()
+                            prereq.save()
+                    
+                    # Find an active post_compression_qc phase that's not failed
                     qc_phase = BatchPhaseExecution.objects.filter(
                         bmr=bmr,
-                        phase__phase_name='post_compression_qc'
+                        phase__phase_name='post_compression_qc',
+                        status__in=['pending', 'not_ready']
                     ).first()
                     
-                    if qc_phase:
-                        print(f"Activating post_compression_qc phase for reprocessing: {qc_phase.id}, current status: {qc_phase.status}")
-                        qc_phase.status = 'pending'
-                        qc_phase.save()
-                        print(f"Post-compression QC phase activated for BMR {bmr.bmr_number} after reprocessing")
-                        return True  # Important: Return here to prevent standard logic from running
-                    else:
-                        print(f"WARNING: No post_compression_qc phase found for BMR {bmr.bmr_number}")
-                        return False
+                    if not qc_phase:
+                        # Create a new post_compression_qc phase
+                        try:
+                            qc_def = ProductionPhase.objects.get(phase_name='post_compression_qc')
+                            qc_phase = BatchPhaseExecution.objects.create(
+                                bmr=bmr,
+                                phase=qc_def,
+                                status='pending',
+                                operator_comments='Auto-created for reprocessing workflow'
+                            )
+                            print(f"Created new post_compression_qc phase for BMR {bmr.bmr_number}")
+                        except Exception as e:
+                            print(f"Error creating post_compression_qc phase: {e}")
+                            return False
+                    
+                    print(f"Activating post_compression_qc phase for reprocessing: {qc_phase.id}, current status: {qc_phase.status}")
+                    qc_phase.status = 'pending'
+                    qc_phase.started_by = None
+                    qc_phase.started_date = None
+                    qc_phase.completed_by = None
+                    qc_phase.completed_date = None
+                    qc_phase.save()
+                    print(f"Post-compression QC phase activated for BMR {bmr.bmr_number} after reprocessing")
+                    
+                    return True  # Important: Return here to prevent standard logic from running
+                else:
+                    print(f"WARNING: No post_compression_qc phase found for BMR {bmr.bmr_number}")
+                    return False
             
             # Special handling for post_blending_qc for capsules - ensure filling is activated next
             if current_execution.phase.phase_name == 'post_blending_qc' and bmr.product.product_type == 'capsule':
