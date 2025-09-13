@@ -1662,7 +1662,7 @@ def operator_dashboard(request):
         
         # Find all tablet BMRs with failed post_compression_qc
         failed_qc_bmrs = BMR.objects.filter(
-            product__product_type='tablet',
+            product__product_type__in=['tablet', 'tablet_normal', 'tablet_2'],
             phase_executions__phase__phase_name='post_compression_qc',
             phase_executions__status='failed'
         ).distinct().select_related('product')
@@ -1673,12 +1673,11 @@ def operator_dashboard(request):
         for bmr in failed_qc_bmrs:
             print(f"Processing BMR: {bmr.bmr_number}")
             
-            # Find the granulation phase for reprocessing - Allow both pending and not_ready status
-            # This ensures it catches phases that should be reprocessed
+            # Find the granulation phase for reprocessing - For failed batches, 
+            # we might need to create or reset the granulation phase
             granulation_phase = BatchPhaseExecution.objects.filter(
                 bmr=bmr,
-                phase__phase_name='granulation',
-                status__in=['pending', 'not_ready']  # Include both pending and not_ready phases
+                phase__phase_name='granulation'
             ).first()
             
             # Find the failed post-compression QC phase
@@ -1688,7 +1687,35 @@ def operator_dashboard(request):
                 status='failed'
             ).first()
             
-            # Check if this batch needs reprocessing (granulation is pending/not_ready and QC failed)
+            # If this BMR has a failed QC but no granulation phase, create one
+            if qc_phase and not granulation_phase:
+                try:
+                    print(f"No granulation phase found for BMR {bmr.bmr_number} - creating one")
+                    phase_def = ProductionPhase.objects.get(phase_name='granulation')
+                    
+                    granulation_phase = BatchPhaseExecution.objects.create(
+                        bmr=bmr,
+                        phase=phase_def,
+                        status='pending',
+                        operator_comments='Auto-created for reprocessing after post_compression_qc failure'
+                    )
+                    print(f"Created new granulation phase for {bmr.bmr_number}")
+                except Exception as e:
+                    print(f"Error creating granulation phase: {e}")
+                    continue
+            
+            # If the granulation phase exists but isn't pending, reset it
+            if granulation_phase and granulation_phase.status != 'pending':
+                granulation_phase.status = 'pending'
+                granulation_phase.started_by = None
+                granulation_phase.started_date = None
+                granulation_phase.completed_by = None
+                granulation_phase.completed_date = None
+                granulation_phase.operator_comments = 'Reset for reprocessing after post_compression_qc failure'
+                granulation_phase.save()
+                print(f"Reset granulation phase to pending for {bmr.bmr_number}")
+            
+            # Check if this batch needs reprocessing (granulation exists and QC failed)
             if granulation_phase and qc_phase:
                 # Also verify that no completed granulation phases exist after the QC failure
                 # This ensures we don't show batches that have already been reprocessed
