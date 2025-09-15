@@ -71,8 +71,6 @@ def handle_post_compression_qc_failure(sender, instance, **kwargs):
                         print(f"Granulation phase already pending for BMR {bmr.bmr_number}")
             else:
                 print(f"Skipping granulation phase reset for BMR {bmr.bmr_number} as blending is already active")
-                else:
-                    print(f"Granulation phase already set to 'pending' for BMR {bmr.bmr_number}")
                 
                 # Reset all subsequent phases to not_ready
                 subsequent_phases = BatchPhaseExecution.objects.filter(
