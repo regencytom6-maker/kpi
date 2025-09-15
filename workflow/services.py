@@ -140,9 +140,9 @@ class WorkflowService:
                 )
                 
             except Exception as e:
-                print(f"Error creating phase {phase_name} for BMR {bmr.bmr_number}: {e}")
+                print(f"Error creating phase {phase_name} for batch {bmr.batch_number}: {e}")
         
-        print(f"Initialized workflow for {bmr.batch_number} ({product_type}) with {len(workflow_phases)} phases")
+        print(f"Initialized workflow for batch {bmr.batch_number} ({product_type}) with {len(workflow_phases)} phases")
     
     @classmethod
     def get_current_phase(cls, bmr):
@@ -308,7 +308,7 @@ class WorkflowService:
             failed_execution.completed_date = timezone.now()
             failed_execution.save()
             
-            print(f"\n*** HANDLING QC FAILURE ROLLBACK FOR BMR {bmr.bmr_number} ***")
+            print(f"\n*** HANDLING QC FAILURE ROLLBACK FOR BATCH {bmr.batch_number} ***")
             print(f"Failed phase: {failed_phase_name}")
             print(f"Rolling back to: {rollback_to_phase}")
             
@@ -400,14 +400,14 @@ class WorkflowService:
                 )
             
             for phase_execution in phases_to_reset:
-                phase_execution.status = 'pending'
+                phase_execution.status = 'not_ready'  # Set to not_ready instead of pending to ensure proper sequence
                 phase_execution.started_by = None
                 phase_execution.started_date = None
                 phase_execution.completed_by = None
                 phase_execution.completed_date = None
                 phase_execution.operator_comments = ''
                 phase_execution.save()
-                print(f"Reset phase {phase_execution.phase.phase_name} to pending (ID: {phase_execution.id})")
+                print(f"Reset phase {phase_execution.phase.phase_name} to not_ready (ID: {phase_execution.id})")
             
             # Set the rollback phase to pending (to be redone)
             rollback_phase.status = 'pending'
@@ -457,16 +457,31 @@ class WorkflowService:
                     post_comp_qc_phase.completed_by = None
                     post_comp_qc_phase.completed_date = None
                     post_comp_qc_phase.save()
-                    print(f"Reset post-compression QC phase to not_ready for BMR {bmr.batch_number}")
+                    print(f"Reset post-compression QC phase to not_ready for batch {bmr.batch_number}")
                 else:
                     print(f"The failed QC phase is maintained as 'failed' to track the failure history")
                 
-                # Failed QC phase already handled above
+                # Make sure sorting phase and all subsequent phases are set to not_ready 
+                sorting_and_later_phases = BatchPhaseExecution.objects.filter(
+                    bmr=bmr,
+                    phase__phase_name__in=['sorting', 'coating', 'packaging_material_release', 
+                                          'blister_packing', 'bulk_packing', 'secondary_packaging', 
+                                          'final_qa', 'finished_goods_store']
+                )
+                
+                for phase in sorting_and_later_phases:
+                    phase.status = 'not_ready'
+                    phase.started_by = None
+                    phase.started_date = None
+                    phase.completed_by = None
+                    phase.completed_date = None
+                    phase.save()
+                    print(f"Ensured {phase.phase.phase_name} phase is set to not_ready for batch {bmr.batch_number}")
             
             return True
             
         except Exception as e:
-            print(f"Error handling QC rollback for BMR {bmr.bmr_number}: {e}")
+            print(f"Error handling QC rollback for batch {bmr.batch_number}: {e}")
             return False
     
     @classmethod
@@ -1101,7 +1116,7 @@ class WorkflowService:
                 ).exists()
                 
                 if previous_failures and bmr.product.product_type in ['tablet', 'tablet_normal', 'tablet_2']:
-                    print(f"\n*** REPROCESSING SUCCESS PATH: Post-compression QC passed for BMR {bmr.bmr_number} after previous failure ***")
+                    print(f"\n*** REPROCESSING SUCCESS PATH: Post-compression QC passed for batch {bmr.batch_number} after previous failure ***")
                     # Special handling - explicitly activate sorting phase
                     sorting_phase = BatchPhaseExecution.objects.filter(
                         bmr=bmr,
@@ -1112,7 +1127,7 @@ class WorkflowService:
                         print(f"Activating sorting phase after successful reprocessing QC: {sorting_phase.id}, current status: {sorting_phase.status}")
                         sorting_phase.status = 'pending'
                         sorting_phase.save()
-                        print(f"Sorting phase activated for BMR {bmr.bmr_number} after successful QC reprocessing")
+                        print(f"Sorting phase activated for batch {bmr.batch_number} after successful QC reprocessing")
                         
                         # Mark the previously failed QC phase as resolved
                         failed_qc_phases = BatchPhaseExecution.objects.filter(
@@ -1203,7 +1218,7 @@ class WorkflowService:
             failed_phase_name = failed_phase.phase_name
             rollback_to_phase = qc_rollback_mapping.get(failed_phase_name)
             
-            print(f"\n*** QC FAILURE: {bmr.bmr_number} ***")
+            print(f"\n*** QC FAILURE: {bmr.batch_number} ***")
             print(f"Failed phase: {failed_phase_name}")
             print(f"Rolling back to: {rollback_to_phase}")
             
