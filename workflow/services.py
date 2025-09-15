@@ -828,6 +828,19 @@ class WorkflowService:
                 if failed_qc and bmr.product.product_type in ['tablet', 'tablet_normal', 'tablet_2']:
                     print(f"\n*** REPROCESSING PATH: Completing blending for tablet BMR {bmr.bmr_number} after QC failure ***")
                     
+                    # Mark the original failed QC as 'resolved_reprocessing' to prevent it from interfering later
+                    failed_qc_phases = BatchPhaseExecution.objects.filter(
+                        bmr=bmr,
+                        phase__phase_name='post_compression_qc',
+                        status='failed'
+                    )
+                    
+                    for failed_phase in failed_qc_phases:
+                        failed_phase.status = 'resolved_reprocessing'
+                        failed_phase.operator_comments = (failed_phase.operator_comments or '') + " | RESOLVED through reprocessing workflow"
+                        failed_phase.save()
+                        print(f"Marked failed QC phase {failed_phase.id} as 'resolved_reprocessing'")
+                    
                     # Ensure all prerequisite phases for compression are completed
                     prerequisite_phases = BatchPhaseExecution.objects.filter(
                         bmr=bmr,

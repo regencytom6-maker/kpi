@@ -1736,11 +1736,31 @@ def operator_dashboard(request):
                     status='completed'
                 ).order_by('-completed_date').first()
                 
+                # Check if blending is already active for this BMR
+                blending_active = BatchPhaseExecution.objects.filter(
+                    bmr=bmr,
+                    phase__phase_name='blending',
+                    status__in=['pending', 'in_progress', 'completed']
+                ).exists()
+                
+                # Check if compression is already active for this BMR
+                compression_active = BatchPhaseExecution.objects.filter(
+                    bmr=bmr,
+                    phase__phase_name='compression',
+                    status__in=['pending', 'in_progress']
+                ).exists()
+                
                 show_for_reprocessing = True
+                
+                # Don't show for reprocessing if granulation was completed after QC failure
                 if last_granulation and qc_phase.completed_date and last_granulation.completed_date > qc_phase.completed_date:
-                    # If the granulation was completed after the QC failed, it's already been reprocessed
                     show_for_reprocessing = False
                     print(f"BMR {bmr.bmr_number} - Granulation already completed after QC failure")
+                
+                # Don't show for reprocessing if blending or compression is already active
+                if blending_active or compression_active:
+                    show_for_reprocessing = False
+                    print(f"BMR {bmr.bmr_number} - Already in blending or compression phase after QC failure")
                 
                 if show_for_reprocessing:
                     batch_info = {

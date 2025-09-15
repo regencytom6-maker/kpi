@@ -15,6 +15,23 @@ def handle_post_compression_qc_failure(sender, instance, **kwargs):
     """
     # Only process post_compression_qc phases that are being set to 'failed'
     if instance.phase.phase_name == 'post_compression_qc' and instance.status == 'failed':
+        # Check if this BMR has already started reprocessing (has completed granulation or active blending)
+        bmr = instance.bmr
+        reprocessing_started = BatchPhaseExecution.objects.filter(
+            bmr=bmr,
+            phase__phase_name='granulation',
+            status='completed',
+            completed_date__gt=instance.completed_date or timezone.now()
+        ).exists() or BatchPhaseExecution.objects.filter(
+            bmr=bmr,
+            phase__phase_name='blending',
+            status__in=['pending', 'in_progress']
+        ).exists()
+        
+        # Skip signal processing if reprocessing has already started
+        if reprocessing_started:
+            print(f"Skipping QC failure handling for BMR {bmr.bmr_number} - reprocessing already started")
+            return
         try:
             # Check if this is a tablet product
             bmr = instance.bmr
