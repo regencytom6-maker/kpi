@@ -1233,12 +1233,21 @@ class WorkflowService:
         # Check if there are any failed QC phases that would roll back to this user's responsibility
         has_rollback = False
         if user_role == 'granulation_operator':
-            # Check if there's a failed post_compression_qc
-            has_rollback = BatchPhaseExecution.objects.filter(
+            # Check if there's a failed post_compression_qc AND the granulation phase isn't already completed
+            failed_qc = BatchPhaseExecution.objects.filter(
                 bmr=bmr,
                 phase__phase_name='post_compression_qc',
                 status='failed'
             ).exists()
+            
+            # Only consider it a rollback if granulation isn't already completed
+            if failed_qc:
+                granulation_completed = BatchPhaseExecution.objects.filter(
+                    bmr=bmr,
+                    phase__phase_name='granulation',
+                    status='completed'
+                ).exists()
+                has_rollback = failed_qc and not granulation_completed
             
         elif user_role == 'mixing_operator':
             # Check if there's a failed post_mixing_qc
