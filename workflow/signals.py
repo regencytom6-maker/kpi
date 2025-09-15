@@ -72,28 +72,28 @@ def handle_post_compression_qc_failure(sender, instance, **kwargs):
             else:
                 print(f"Skipping granulation phase reset for BMR {bmr.bmr_number} as blending is already active")
                 
-                # Reset all subsequent phases to not_ready
-                subsequent_phases = BatchPhaseExecution.objects.filter(
-                    bmr=bmr,
-                    phase__phase_name__in=['blending', 'compression', 'post_compression_qc', 'sorting', 'coating', 
-                                          'packaging_material_release', 'blister_packing', 'secondary_packaging', 
-                                          'final_qa', 'finished_goods_store']
-                )
+            # Reset all subsequent phases to not_ready
+            subsequent_phases = BatchPhaseExecution.objects.filter(
+                bmr=bmr,
+                phase__phase_name__in=['blending', 'compression', 'post_compression_qc', 'sorting', 'coating', 
+                                      'packaging_material_release', 'blister_packing', 'secondary_packaging', 
+                                      'final_qa', 'finished_goods_store']
+            )
+            
+            for phase in subsequent_phases:
+                if phase.status != 'not_ready':
+                    old_status = phase.status
+                    phase.status = 'not_ready'
+                    phase.started_by = None
+                    phase.started_date = None
+                    phase.completed_by = None
+                    phase.completed_date = None
+                    phase.save()
+                    print(f"Reset {phase.phase.phase_name} phase from '{old_status}' to 'not_ready' for BMR {bmr.bmr_number}")
                 
-                for phase in subsequent_phases:
-                    if phase.status != 'not_ready':
-                        old_status = phase.status
-                        phase.status = 'not_ready'
-                        phase.started_by = None
-                        phase.started_date = None
-                        phase.completed_by = None
-                        phase.completed_date = None
-                        phase.save()
-                        print(f"Reset {phase.phase.phase_name} phase from '{old_status}' to 'not_ready' for BMR {bmr.bmr_number}")
-                    
-                print(f"Successfully set up tablet batch {bmr.bmr_number} for reprocessing after QC failure")
-            else:
-                print(f"ERROR: No granulation phase found for BMR {bmr.bmr_number}")
+            print(f"Successfully set up tablet batch {bmr.bmr_number} for reprocessing after QC failure")
+        except Exception as e:
+            print(f"Error in handle_post_compression_qc_failure: {str(e)}")
                 
         except Exception as e:
             print(f"Error in handle_post_compression_qc_failure: {str(e)}")
