@@ -735,7 +735,7 @@ class WorkflowService:
                     print(f"Marking current granulation phase as completed for BMR {bmr.bmr_number}")
                     current_execution.status = 'completed'
                     current_execution.completed_date = timezone.now()
-                    current_execution.completed_by = current_user
+                    current_execution.completed_by = None  # Set to None since we don't have user context here
                     current_execution.save()
                     
                     # Activate blending phase
