@@ -1557,7 +1557,7 @@ def operator_dashboard(request):
     operator_history = [
         {
             'date': (p.completed_date or p.started_date or p.created_date).strftime('%Y-%m-%d %H:%M') if (p.completed_date or p.started_date or p.created_date) else '',
-            'batch': p.bmr.bmr_number,
+            'batch': p.bmr.batch_number,
             'bmr_id': p.bmr.id,  # Added BMR ID for linking
             'phase': p.phase.get_phase_name_display(),
         }
