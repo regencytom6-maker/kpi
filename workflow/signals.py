@@ -41,23 +41,36 @@ def handle_post_compression_qc_failure(sender, instance, **kwargs):
                 print(f"Updated batch number: {original_batch_number} → {new_batch_number}")
             
             # Reset granulation phase to pending for reprocessing
-            granulation_phase = BatchPhaseExecution.objects.filter(
+            # CRITICAL: Check if a blending phase is already in progress or pending
+            blending_active = BatchPhaseExecution.objects.filter(
                 bmr=bmr,
-                phase__phase_name='granulation'
-            ).first()
+                phase__phase_name='blending',
+                status__in=['pending', 'in_progress']
+            ).exists()
             
-            if granulation_phase:
-                # Only update if not already pending
-                if granulation_phase.status != 'pending':
-                    old_status = granulation_phase.status
-                    granulation_phase.status = 'pending'
-                    granulation_phase.started_by = None
-                    granulation_phase.started_date = None
-                    granulation_phase.completed_by = None
-                    granulation_phase.completed_date = None
-                    granulation_phase.operator_comments = (granulation_phase.operator_comments or "") + f" | Reprocessing after QC failure on {timezone.now().strftime('%Y-%m-%d')}. New batch number: {bmr.batch_number}"
-                    granulation_phase.save()
-                    print(f"Reset granulation phase from '{old_status}' to 'pending' for BMR {bmr.bmr_number}")
+            # Only reset granulation if blending is not already active
+            if not blending_active:
+                granulation_phase = BatchPhaseExecution.objects.filter(
+                    bmr=bmr,
+                    phase__phase_name='granulation'
+                ).first()
+                
+                if granulation_phase:
+                    # Only update if not already pending
+                    if granulation_phase.status != 'pending':
+                        old_status = granulation_phase.status
+                        granulation_phase.status = 'pending'
+                        granulation_phase.started_by = None
+                        granulation_phase.started_date = None
+                        granulation_phase.completed_by = None
+                        granulation_phase.completed_date = None
+                        granulation_phase.operator_comments = (granulation_phase.operator_comments or "") + f" | Reprocessing after QC failure on {timezone.now().strftime('%Y-%m-%d')}. New batch number: {bmr.batch_number}"
+                        granulation_phase.save()
+                        print(f"Reset granulation phase from '{old_status}' to 'pending' for BMR {bmr.bmr_number}")
+                    else:
+                        print(f"Granulation phase already pending for BMR {bmr.bmr_number}")
+            else:
+                print(f"Skipping granulation phase reset for BMR {bmr.bmr_number} as blending is already active")
                 else:
                     print(f"Granulation phase already set to 'pending' for BMR {bmr.bmr_number}")
                 

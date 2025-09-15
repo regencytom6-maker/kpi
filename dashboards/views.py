@@ -1704,16 +1704,27 @@ def operator_dashboard(request):
                     print(f"Error creating granulation phase: {e}")
                     continue
             
-            # If the granulation phase exists but isn't pending, reset it
+            # If the granulation phase exists but isn't pending, check if we should reset it
             if granulation_phase and granulation_phase.status != 'pending':
-                granulation_phase.status = 'pending'
-                granulation_phase.started_by = None
-                granulation_phase.started_date = None
-                granulation_phase.completed_by = None
-                granulation_phase.completed_date = None
-                granulation_phase.operator_comments = 'Reset for reprocessing after post_compression_qc failure'
-                granulation_phase.save()
-                print(f"Reset granulation phase to pending for {bmr.bmr_number}")
+                # CRITICAL: Check if a blending phase is already in progress or pending
+                blending_active = BatchPhaseExecution.objects.filter(
+                    bmr=bmr,
+                    phase__phase_name='blending',
+                    status__in=['pending', 'in_progress']
+                ).exists()
+                
+                # Only reset if blending is not active (which means reprocessing hasn't started yet)
+                if not blending_active:
+                    granulation_phase.status = 'pending'
+                    granulation_phase.started_by = None
+                    granulation_phase.started_date = None
+                    granulation_phase.completed_by = None
+                    granulation_phase.completed_date = None
+                    granulation_phase.operator_comments = 'Reset for reprocessing after post_compression_qc failure'
+                    granulation_phase.save()
+                    print(f"Reset granulation phase to pending for {bmr.bmr_number}")
+                else:
+                    print(f"Skipping granulation phase reset for {bmr.bmr_number} as blending is already active")
             
             # Check if this batch needs reprocessing (granulation exists and QC failed)
             if granulation_phase and qc_phase:
